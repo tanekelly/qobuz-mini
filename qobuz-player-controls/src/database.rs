@@ -100,6 +100,13 @@ impl Database {
         Ok(())
     }
 
+    pub async fn clear_credentials(&self) -> Result<()> {
+        sqlx::query("UPDATE credentials SET username=NULL, password=NULL WHERE ROWID = 1")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn set_tracklist(&self, tracklist: &Tracklist) -> Result<()> {
         let serialized = to_string(&tracklist)?;
 

@@ -5,6 +5,7 @@ use crate::{
     popup::{Popup, TrackPopupState},
     queue::QueueState,
     search::SearchState,
+    settings::SettingsState,
 };
 use core::fmt;
 use image::load_from_memory;
@@ -12,6 +13,8 @@ use qobuz_player_controls::{
     PositionReceiver, Result, Status, StatusReceiver, TracklistReceiver,
     client::Client,
     controls::Controls,
+    database::Database,
+    ExitSender,
     notification::{Notification, NotificationBroadcast},
     tracklist::Tracklist,
 };
@@ -62,6 +65,9 @@ pub struct App {
     pub search: SearchState,
     pub queue: QueueState,
     pub discover: DiscoverState,
+    pub settings: SettingsState,
+    pub database: Arc<Database>,
+    pub exit_sender: ExitSender,
     pub broadcast: Arc<NotificationBroadcast>,
     pub notifications: NotificationList,
     pub full_screen: bool,
@@ -92,6 +98,7 @@ pub enum Tab {
     Search,
     Queue,
     Discover,
+    Settings,
 }
 
 impl fmt::Display for Tab {
@@ -101,12 +108,19 @@ impl fmt::Display for Tab {
             Tab::Search => write!(f, "Search"),
             Tab::Queue => write!(f, "Queue"),
             Tab::Discover => write!(f, "Discover"),
+            Tab::Settings => write!(f, "Settings"),
         }
     }
 }
 
 impl Tab {
-    pub const VALUES: [Self; 4] = [Tab::Favorites, Tab::Search, Tab::Queue, Tab::Discover];
+    pub const VALUES: [Self; 5] = [
+        Tab::Favorites,
+        Tab::Search,
+        Tab::Queue,
+        Tab::Discover,
+        Tab::Settings,
+    ];
 }
 
 #[derive(Default)]
@@ -264,6 +278,10 @@ impl App {
                     self.navigate_to_discover();
                     self.should_draw = true;
                 }
+                KeyCode::Char('5') => {
+                    self.navigate_to_settings();
+                    self.should_draw = true;
+                }
                 KeyCode::Char(' ') => {
                     self.controls.play_pause();
                     self.should_draw = true;
@@ -410,6 +428,11 @@ impl App {
                             .handle_events(event, &self.client, &mut self.notifications)
                             .await
                     }
+                    Tab::Settings => {
+                        self.settings
+                            .handle_events(event, &self.database, &self.exit_sender)
+                            .await
+                    }
                 };
 
                 self.handle_output(key_event.code, screen_output).await;
@@ -436,6 +459,10 @@ impl App {
 
     fn navigate_to_discover(&mut self) {
         self.current_screen = Tab::Discover;
+    }
+
+    fn navigate_to_settings(&mut self) {
+        self.current_screen = Tab::Settings;
     }
 
     fn exit(&mut self) {

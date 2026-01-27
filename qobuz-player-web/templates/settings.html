@@ -1,0 +1,11 @@
+@defer (base.html; active_page="Settings"; playing_info=playing_info) {
+  <div class="flex flex-col gap-4 px-4">
+    <h1 class="text-2xl">Settings</h1>
+    <form hx-post="/settings/sign-out" hx-swap="none" class="flex flex-col gap-4">
+      <button type="submit" class="button button-danger w-full">
+        <span class="size-6">@defer (icons/user.html) {}</span>
+        <span>Sign Out</span>
+      </button>
+    </form>
+  </div>
+}

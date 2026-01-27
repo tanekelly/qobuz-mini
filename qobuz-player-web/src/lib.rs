@@ -8,9 +8,10 @@ use axum::{
 };
 use futures::stream::Stream;
 use qobuz_player_controls::{
-    PositionReceiver, Result, Status, StatusReceiver, TracklistReceiver, VolumeReceiver,
+    ExitSender, PositionReceiver, Result, Status, StatusReceiver, TracklistReceiver, VolumeReceiver,
     client::Client,
     controls::Controls,
+    database::Database,
     error::Error,
     notification::{Notification, NotificationBroadcast},
 };
@@ -30,7 +31,7 @@ use crate::{
     app_state::AppState,
     routes::{
         album, api, artist, auth, controls, discover, favorites, now_playing, playlist, queue,
-        search,
+        search, settings,
     },
     views::templates,
 };
@@ -52,6 +53,8 @@ pub async fn init(
     rfid_state: Option<RfidState>,
     broadcast: Arc<NotificationBroadcast>,
     client: Arc<Client>,
+    database: Arc<Database>,
+    exit_sender: ExitSender,
 ) -> Result<()> {
     let interface = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(&interface)
@@ -68,6 +71,8 @@ pub async fn init(
         rfid_state,
         broadcast,
         client,
+        database,
+        exit_sender,
     )
     .await;
 
@@ -86,6 +91,8 @@ async fn create_router(
     rfid_state: Option<RfidState>,
     broadcast: Arc<NotificationBroadcast>,
     client: Arc<Client>,
+    database: Arc<Database>,
+    exit_sender: ExitSender,
 ) -> Router {
     let (tx, _rx) = broadcast::channel::<ServerSentEvent>(100);
     let broadcast_subscribe = broadcast.subscribe();
@@ -142,6 +149,8 @@ async fn create_router(
         volume_receiver: volume_receiver.clone(),
         status_receiver: status_receiver.clone(),
         templates: templates_rx.clone(),
+        database,
+        exit_sender,
     });
 
     tokio::spawn(background_task(
@@ -166,6 +175,7 @@ async fn create_router(
         .merge(favorites::routes())
         .merge(discover::routes())
         .merge(controls::routes())
+        .merge(settings::routes())
         .layer(axum::middleware::from_fn_with_state(
             shared_state.clone(),
             auth::auth_middleware,

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use app::{App, get_current_state};
 use favorites::FavoritesState;
 use qobuz_player_controls::{
-    ExitSender, PositionReceiver, Result, StatusReceiver, TracklistReceiver, client::Client,
-    controls::Controls, error::Error, notification::NotificationBroadcast,
+    database::Database, ExitSender, PositionReceiver, Result, StatusReceiver, TracklistReceiver,
+    client::Client, controls::Controls, error::Error, notification::NotificationBroadcast,
 };
 use queue::QueueState;
 use ratatui::{prelude::*, widgets::*};
@@ -17,6 +17,7 @@ mod now_playing;
 mod popup;
 mod queue;
 mod search;
+mod settings;
 mod sub_tab;
 mod ui;
 mod widgets;
@@ -30,6 +31,7 @@ pub async fn init(
     tracklist_receiver: TracklistReceiver,
     status_receiver: StatusReceiver,
     exit_sender: ExitSender,
+    database: Arc<Database>,
     disable_tui_album_cover: bool,
 ) -> Result<()> {
     let mut terminal = ratatui::init();
@@ -40,6 +42,7 @@ pub async fn init(
     let status_value = *status_receiver.borrow();
     let queue = tracklist_value.queue().clone();
     let now_playing = get_current_state(tracklist_value, status_value).await;
+    let exit_sender_clone = exit_sender.clone();
 
     let mut app = App {
         broadcast,
@@ -59,12 +62,15 @@ pub async fn init(
         search: Default::default(),
         queue: QueueState::new(queue),
         discover: discover::DiscoverState::new(&client).await?,
+        settings: settings::SettingsState::new(),
+        database,
+        exit_sender,
         client,
     };
 
     _ = app.run(&mut terminal).await;
     ratatui::restore();
-    match exit_sender.send(true) {
+    match exit_sender_clone.send(true) {
         Ok(_) => Ok(()),
         Err(_) => Err(Error::Notification),
     }

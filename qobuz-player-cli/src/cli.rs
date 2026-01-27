@@ -273,6 +273,8 @@ pub async fn run() -> Result<(), Error> {
                 let rfid_state = rfid_state.clone();
                 let broadcast = broadcast.clone();
                 let client = client.clone();
+                let database = database.clone();
+                let exit_sender = exit_sender.clone();
 
                 tokio::spawn(async move {
                     if let Err(e) = qobuz_player_web::init(
@@ -286,6 +288,8 @@ pub async fn run() -> Result<(), Error> {
                         rfid_state,
                         broadcast,
                         client,
+                        database,
+                        exit_sender,
                     )
                     .await
                     {
@@ -328,6 +332,7 @@ pub async fn run() -> Result<(), Error> {
                 let controls = player.controls();
                 let client = client.clone();
                 let broadcast = broadcast.clone();
+                let database = database.clone();
                 tokio::spawn(async move {
                     if let Err(e) = qobuz_player_tui::init(
                         client,
@@ -337,6 +342,7 @@ pub async fn run() -> Result<(), Error> {
                         tracklist_receiver,
                         status_receiver,
                         exit_sender,
+                        database,
                         disable_tui_album_cover,
                     )
                     .await
