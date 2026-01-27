@@ -55,11 +55,18 @@ pub enum Error {
     },
     #[snafu(display("Unable to reorder playlist"))]
     PlaylistReorderError,
+    #[snafu(display("Unable to delete database files: {message}"))]
+    DatabaseFileError {
+        message: String,
+    },
 }
 
 impl From<sqlx::migrate::MigrateError> for Error {
-    fn from(_value: sqlx::migrate::MigrateError) -> Self {
-        Self::DatabaseMigrationError
+    fn from(value: sqlx::migrate::MigrateError) -> Self {
+        let error_msg = format!("{}", value);
+        Self::DatabaseError {
+            source: sqlx::Error::Configuration(error_msg.into()),
+        }
     }
 }
 
@@ -136,5 +143,13 @@ impl From<qobuz_player_client::Error> for Error {
 impl From<tokio::sync::broadcast::error::SendError<Notification>> for Error {
     fn from(_value: tokio::sync::broadcast::error::SendError<Notification>) -> Self {
         Self::Notification
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Self::DatabaseFileError {
+            message: value.to_string(),
+        }
     }
 }

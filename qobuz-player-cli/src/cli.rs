@@ -88,6 +88,9 @@ enum Commands {
         #[clap(subcommand)]
         command: ConfigCommands,
     },
+    /// Refresh database
+    #[clap(name = "refresh")]
+    RefreshDatabase,
 }
 
 #[derive(Subcommand)]
@@ -391,12 +394,15 @@ pub async fn run() -> Result<(), Error> {
             }
             ConfigCommands::MaxAudioQuality { quality } => {
                 database.set_max_audio_quality(quality).await?;
-
                 println!("Max audio quality saved.");
-
                 Ok(())
             }
         },
+        Commands::RefreshDatabase => {
+            database.refresh_database().await?;
+            println!("Database refreshed successfully.");
+            Ok(())
+        }
     }
 }
 

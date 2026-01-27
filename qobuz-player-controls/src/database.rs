@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 pub struct Database {
     pool: Pool<Sqlite>,
+    database_path: PathBuf,
 }
 
 impl Database {
@@ -31,21 +32,42 @@ impl Database {
 
         let options = SqliteConnectOptions::new()
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-            .filename(database_url)
+            .filename(&database_url)
             .create_if_missing(true);
 
         let pool = SqlitePool::connect_with(options).await?;
 
-        Database::init(pool).await
+        Database::init(pool, database_url).await
     }
 
-    async fn init(pool: sqlx::Pool<sqlx::Sqlite>) -> Result<Self> {
-        sqlx::migrate!("./migrations").run(&pool).await?;
+    async fn init(pool: sqlx::Pool<sqlx::Sqlite>, database_path: PathBuf) -> Result<Self> {
+        if let Err(e) = sqlx::migrate!("./migrations").run(&pool).await {
+            let error_msg = format!("{}", e);
+            if error_msg.contains("was previously applied but is missing") ||
+                error_msg.contains("missing in the resolved migrations") {
+                pool.close().await;
+                delete_database_files(&database_path)?;
+                return Self::create_fresh_database(database_path).await;
+            }
+            return Err(e.into());
+        }
 
         create_credentials_row(&pool).await?;
         create_configuration(&pool).await?;
 
-        Ok(Self { pool })
+        Ok(Self { pool, database_path })
+    }
+
+    async fn create_fresh_database(database_path: PathBuf) -> Result<Self> {
+        let options = SqliteConnectOptions::new()
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .filename(&database_path)
+            .create_if_missing(true);
+        let pool = SqlitePool::connect_with(options).await?;
+        sqlx::migrate!("./migrations").run(&pool).await?;
+        create_credentials_row(&pool).await?;
+        create_configuration(&pool).await?;
+        Ok(Self { pool, database_path })
     }
 
     pub async fn set_username(&self, username: String) -> Result<()> {
@@ -89,12 +111,12 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
-        sqlx::query!(
+        sqlx::query(
             r#"
-            INSERT INTO tracklist (tracklist) VALUES (?1);
+            INSERT INTO tracklist (tracklist) VALUES (?1);
         "#,
-            serialized
         )
+        .bind(&serialized)
         .execute(&self.pool)
         .await?;
 
@@ -123,12 +145,12 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
-        sqlx::query!(
+        sqlx::query(
             r#"
-            INSERT INTO volume (volume) VALUES (?1);
+            INSERT INTO volume (volume) VALUES (?1);
         "#,
-            volume
         )
+        .bind(volume)
         .execute(&self.pool)
         .await?;
 
@@ -292,6 +314,12 @@ impl Database {
         .await
         .expect("infallible");
     }
+
+    pub async fn refresh_database(&self) -> Result<()> {
+        self.pool.close().await;
+        delete_database_files(&self.database_path)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -348,6 +376,23 @@ struct VolumeDb {
     volume: f64,
 }
 
+fn delete_database_files(db_path: &PathBuf) -> Result<()> {
+    if db_path.exists() {
+        std::fs::remove_file(db_path)?;
+    }
+    let mut wal_path = db_path.clone();
+    wal_path.set_extension("db-wal");
+    if wal_path.exists() {
+        std::fs::remove_file(&wal_path)?;
+    }
+    let mut shm_path = db_path.clone();
+    shm_path.set_extension("db-shm");
+    if shm_path.exists() {
+        std::fs::remove_file(&shm_path)?;
+    }
+    Ok(())
+}
+
 async fn create_credentials_row(pool: &Pool<Sqlite>) -> Result<()> {
     let rowid = 1;
 
@@ -382,7 +427,8 @@ mod tests {
 
     #[sqlx::test]
     async fn clean_up_cache_entries(pool: sqlx::Pool<sqlx::Sqlite>) {
-        let db = Database::init(pool).await.unwrap();
+        let dummy_path = PathBuf::from(":memory:");
+        let db = Database::init(pool, dummy_path).await.unwrap();
 
         let old_path_str = "path/old";
         let old_path = Path::new(old_path_str);
