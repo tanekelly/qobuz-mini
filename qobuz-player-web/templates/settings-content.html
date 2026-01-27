@@ -1,0 +1,47 @@
+<div 
+  id="settings-content" 
+  class="flex flex-col gap-4 px-4"
+  hx-get="/settings/partial"
+  hx-trigger="device from:body"
+  data-sse="device"
+  hx-target="this"
+  hx-swap="outerHTML"
+>
+  <h1 class="text-2xl">Settings</h1>
+  
+  <div class="flex flex-col gap-2">
+    <label class="text-sm font-medium">Audio Output</label>
+    <form 
+      hx-post="/settings/set-device"
+      hx-target="#settings-content"
+      hx-swap="outerHTML"
+      class="flex flex-col gap-2"
+    >
+      <select 
+        name="device_name" 
+        class="w-full px-3 py-2 bg-gray-800 text-gray-100"
+        onchange="this.form.requestSubmit()"
+      >
+        @if (selected_device_name == "") {
+          <option value="" selected class="text-gray-100">Default</option>
+        } @else {
+          <option value="" class="text-gray-100">Default</option>
+        }
+        @for (device in devices) {
+          @if (selected_device_name == device.name) {
+            <option value="{{ device.name }}" selected class="text-gray-100">{{ device.name }}</option>
+          } @else {
+            <option value="{{ device.name }}" class="text-gray-100">{{ device.name }}</option>
+          }
+        }
+      </select>
+    </form>
+  </div>
+  
+  <form hx-post="/settings/sign-out" hx-swap="none" class="flex flex-col gap-4">
+    <button type="submit" class="button button-danger w-full">
+      <span class="size-6">@defer (icons/user.html) {}</span>
+      <span>Sign Out</span>
+    </button>
+  </form>
+</div>

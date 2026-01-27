@@ -47,6 +47,9 @@ pub enum ControlCommand {
     ReorderQueue {
         new_order: Vec<usize>,
     },
+    SetAudioDevice {
+        device_name: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -160,6 +163,12 @@ impl Controls {
     pub fn reorder_queue(&self, new_order: Vec<usize>) {
         self.tx
             .send(ControlCommand::ReorderQueue { new_order })
+            .expect("infallible");
+    }
+
+    pub fn set_audio_device(&self, device_name: Option<String>) {
+        self.tx
+            .send(ControlCommand::SetAudioDevice { device_name })
             .expect("infallible");
     }
 }

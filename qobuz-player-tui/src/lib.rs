@@ -62,7 +62,7 @@ pub async fn init(
         search: Default::default(),
         queue: QueueState::new(queue),
         discover: discover::DiscoverState::new(&client).await?,
-        settings: settings::SettingsState::new(),
+        settings: settings::SettingsState::new(&database).await?,
         database,
         exit_sender,
         client,

@@ -6,8 +6,8 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use qobuz_player_controls::{
-    AudioQuality, client::Client, database::Database, notification::NotificationBroadcast,
-    player::Player,
+    AudioQuality, client::Client, database::Database, notification::{Notification, NotificationBroadcast},
+    player::Player, list_audio_devices, get_default_device_name,
 };
 use qobuz_player_rfid::RfidState;
 use snafu::prelude::*;
@@ -312,6 +312,7 @@ pub async fn run() -> Result<(), Error> {
                 let tracklist_receiver = player.tracklist();
                 let controls = player.controls();
                 let database = database.clone();
+                let broadcast = broadcast.clone();
                 tokio::spawn(async move {
                     if let Err(e) = qobuz_player_rfid::init(
                         rfid_state,
@@ -352,9 +353,13 @@ pub async fn run() -> Result<(), Error> {
                 });
             };
 
+            let database_for_cleanup = database.clone();
+            let database_for_monitoring = database.clone();
+            let broadcast_for_monitoring = broadcast.clone();
+
             if audio_cache_time_to_live != 0 {
                 let clean_up_schedule = every(1).hour().perform(move || {
-                    let database = database.clone();
+                    let database = database_for_cleanup.clone();
                     async move {
                         if let Ok(deleted_paths) = database
                             .clean_up_cache_entries(time::Duration::hours(
@@ -371,6 +376,11 @@ pub async fn run() -> Result<(), Error> {
 
                 tokio::spawn(clean_up_schedule);
             }
+
+            let controls_for_monitoring = player.controls();
+            tokio::spawn(async move {
+                monitor_audio_devices(controls_for_monitoring, database_for_monitoring, broadcast_for_monitoring).await;
+            });
 
             player.player_loop(exit_receiver).await?;
             Ok(())
@@ -408,6 +418,101 @@ pub async fn run() -> Result<(), Error> {
             database.refresh_database().await?;
             println!("Database refreshed successfully.");
             Ok(())
+        }
+    }
+}
+
+async fn monitor_audio_devices(
+    controls: qobuz_player_controls::controls::Controls,
+    database: Arc<Database>,
+    broadcast: Arc<NotificationBroadcast>,
+) {
+    tracing::info!("Starting audio device monitoring");
+    let mut last_device_count = 0;
+    let mut last_selected_device: Option<String> = None;
+    let mut last_default_device: Option<String> = None;
+    
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        
+        match list_audio_devices() {
+            Ok(devices) => {
+                let current_count = devices.len();
+                let current_selected = database.get_configuration().await
+                    .ok()
+                    .and_then(|c| c.audio_device_name);
+                
+                let current_default = get_default_device_name().unwrap_or(None);
+                    
+                if current_count != last_device_count {
+                    tracing::info!("Audio device count changed: {} -> {}", last_device_count, current_count);
+                    last_device_count = current_count;
+                    
+                    broadcast.send(Notification::Info(
+                        "Audio device list updated.".to_string()
+                    ));
+                    
+                    if let Some(selected) = &current_selected {
+                        let device_exists = devices.iter().any(|d| &d.name == selected);
+                        if !device_exists {
+                            tracing::warn!("Selected audio device '{}' no longer available", selected);
+                            broadcast.send(Notification::Warning(
+                                format!("Audio device '{}' was removed. Using default device.", selected)
+                            ));
+                            if let Err(e) = database.set_audio_device(None).await {
+                                tracing::error!("Failed to reset audio device: {}", e);
+                            } else {
+                                controls.set_audio_device(None);
+                            }
+                        }
+                    }
+                }
+                
+                if current_selected.is_none() {
+                    if current_default != last_default_device {
+                        if let (Some(old_default), Some(new_default)) = (&last_default_device, &current_default) {
+                            if old_default != new_default {
+                                tracing::info!("System default device changed: '{}' -> '{}'", old_default, new_default);
+                                broadcast.send(Notification::Info(
+                                    format!("Default audio device changed to '{}'.", new_default)
+                                ));
+                                controls.set_audio_device(None);
+                            }
+                        } else if current_default.is_some() && last_default_device.is_none() {
+                            if let Some(new_default) = &current_default {
+                                tracing::info!("Default audio device appeared: '{}'", new_default);
+                                broadcast.send(Notification::Info(
+                                    format!("Default audio device is now '{}'.", new_default)
+                                ));
+                                controls.set_audio_device(None);
+                            }
+                        } else if last_default_device.is_some() && current_default.is_none() {
+                            tracing::warn!("Default audio device disappeared");
+                            broadcast.send(Notification::Warning(
+                                "Default audio device was removed.".to_string()
+                            ));
+                            controls.set_audio_device(None);
+                        }
+                        last_default_device = current_default.clone();
+                    }
+                } else {
+                    last_default_device = current_default.clone();
+                }
+                
+                if current_selected.is_none() && current_count != last_device_count {
+                    tracing::info!("Device list changed while 'Default' is selected, rechecking default device");
+                    controls.set_audio_device(None);
+                }
+                
+                if current_selected != last_selected_device {
+                    tracing::info!("Selected audio device changed externally: {:?} -> {:?}", 
+                        last_selected_device, current_selected);
+                    last_selected_device = current_selected.clone();
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to list audio devices: {}", e);
+            }
         }
     }
 }

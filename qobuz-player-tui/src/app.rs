@@ -202,8 +202,29 @@ impl App {
 
                 notification = receiver.recv() => {
                     if let Ok(notification) = notification {
-                        self.notifications.push(notification);
+                        self.notifications.push(notification.clone());
                         self.should_draw = true;
+                        
+                        if let Notification::Warning(msg) = &notification {
+                            if msg.contains("Audio device") && (msg.contains("was removed") || msg.contains("error") || msg.contains("Resetting")) {
+                                self.settings.refresh_from_database(&self.database).await;
+                                terminal.clear()?;
+                                terminal.draw(|frame| self.render(frame))?;
+                                self.should_draw = false;
+                            }
+                        }
+                        
+                        if let Notification::Info(msg) = &notification {
+                            if msg.contains("Audio device list updated") 
+                                || msg.contains("Default audio device")
+                                || msg.contains("Audio device changed to")
+                                || msg.contains("was removed") {
+                                self.settings.refresh_from_database(&self.database).await;
+                                terminal.clear()?;
+                                terminal.draw(|frame| self.render(frame))?;
+                                self.should_draw = false;
+                            }
+                        }
                     }
                 }
             }
@@ -430,7 +451,7 @@ impl App {
                     }
                     Tab::Settings => {
                         self.settings
-                            .handle_events(event, &self.database, &self.exit_sender)
+                            .handle_events(event, &self.database, &self.exit_sender, &self.controls)
                             .await
                     }
                 };

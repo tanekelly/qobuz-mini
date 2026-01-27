@@ -1,7 +1,7 @@
 use crate::{AudioQuality, Error, Result, Tracklist};
 use serde_json::to_string;
 use sqlx::types::Json;
-use sqlx::{Pool, Sqlite, SqlitePool, sqlite::SqliteConnectOptions};
+use sqlx::{Pool, Row, Sqlite, SqlitePool, sqlite::SqliteConnectOptions};
 use std::path::{Path, PathBuf};
 
 pub struct Database {
@@ -207,15 +207,33 @@ impl Database {
     }
 
     pub async fn get_configuration(&self) -> Result<DatabaseConfiguration> {
-        Ok(sqlx::query_as!(
-            DatabaseConfiguration,
+        let row = sqlx::query(
             r#"
-            SELECT * FROM configuration
+            SELECT max_audio_quality, audio_device_name FROM configuration
             WHERE ROWID = 1;
             "#
         )
         .fetch_one(&self.pool)
-        .await?)
+        .await?;
+        
+        Ok(DatabaseConfiguration {
+            max_audio_quality: row.get("max_audio_quality"),
+            audio_device_name: row.get("audio_device_name"),
+        })
+    }
+
+    pub async fn set_audio_device(&self, device_name: Option<String>) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE configuration
+            SET audio_device_name=?1
+            WHERE ROWID = 1
+            "#,
+        )
+        .bind(device_name)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     pub async fn add_rfid_reference(
@@ -371,6 +389,7 @@ pub struct DatabaseCredentials {
 
 pub struct DatabaseConfiguration {
     pub max_audio_quality: i64,
+    pub audio_device_name: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow, serde::Deserialize)]

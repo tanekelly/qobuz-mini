@@ -18,3 +18,4 @@ tui-input.workspace = true
 image.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
+tracing.workspace = true

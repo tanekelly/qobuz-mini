@@ -15,7 +15,7 @@ use crate::{
     database::Database,
     downloader::Downloader,
     notification::{Notification, NotificationBroadcast},
-    sink::QueryTrackResult,
+    sink::{QueryTrackResult, list_audio_devices},
     tracklist::{SingleTracklist, TracklistType},
 };
 use std::{path::PathBuf, sync::Arc, time::Duration};
@@ -111,6 +111,126 @@ impl Player {
         self.tracklist_tx.subscribe()
     }
 
+    pub async fn set_audio_device(&mut self, device_name: Option<String>) -> Result<()> {
+        tracing::info!("Player: Setting audio device to: {:?}", device_name);
+        
+        if let Some(ref name) = device_name {
+            let devices = list_audio_devices()?;
+            if !devices.iter().any(|d| &d.name == name) {
+                tracing::warn!("Player: Device '{}' not found, falling back to default", name);
+                self.broadcast.send(Notification::Warning(
+                    format!("Audio device '{}' not found. Using default device.", name)
+                ));
+                self.sink.set_device(None);
+                return Ok(());
+            }
+        }
+        
+        self.sink.set_device(device_name.clone());
+        
+        let device_display = device_name.as_ref().map(|s| s.as_str()).unwrap_or("Default");
+        self.broadcast.send(Notification::Info(
+            format!("Audio device changed to '{}'.", device_display)
+        ));
+        
+        let current_status = *self.target_status.borrow();
+        let was_playing = current_status == Status::Playing || current_status == Status::Buffering;
+        
+        if was_playing {
+            tracing::info!("Player: Device changed during playback, recreating stream");
+            let tracklist = self.tracklist_rx.borrow();
+            if let Some(current_track) = tracklist.current_track() {
+                let current_position = self.sink.position();
+                let position_ms = current_position.as_millis() as u64;
+                
+                let track_url = self.client.track_url(current_track.id).await?;
+                if let Some(track_path) = self
+                    .downloader
+                    .ensure_track_is_downloaded(track_url, current_track)
+                    .await
+                {
+
+                    if let Err(e) = self.sink.pause() {
+                        tracing::warn!("Failed to pause sink during device change: {}", e);
+                    }
+                    
+                    if let Err(e) = self.sink.clear() {
+                        let error_msg = e.to_string();
+                        if error_msg.contains("device") || error_msg.contains("no longer available") {
+                            tracing::warn!("Device already removed during clear: {}", error_msg);
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                    
+                    match self.sink.query_track(&track_path) {
+                        Ok(_) => {
+                            if let Err(e) = self.sink.play() {
+                                tracing::warn!("Failed to play sink after device change: {}", e);
+                            }
+                            self.set_target_status(Status::Playing);
+                            
+                            if position_ms > 1000 {
+                                tokio::time::sleep(Duration::from_millis(200)).await;
+                                let restore_position = Duration::from_millis(position_ms);
+                                if let Err(e) = self.sink.seek(restore_position) {
+                                    tracing::warn!("Failed to restore position after device change: {}", e);
+                                } else {
+                                    tracing::info!("Restored playback position to {}ms after device change", position_ms);
+                                    self.position.send(restore_position)?;
+                                }
+                            }
+                            
+                            tracing::info!("Player: Successfully switched to new audio device during playback");
+                        }
+                        Err(e) => {
+                            let error_msg = e.to_string();
+                            tracing::error!("Failed to recreate stream with new device: {}", error_msg);
+                            self.set_target_status(Status::Paused);
+                            self.broadcast.send(Notification::Warning(
+                                "Failed to switch audio device. Please resume playback.".to_string()
+                            ));
+                        }
+                    }
+                } else {
+                    if let Err(e) = self.sink.pause() {
+                        tracing::warn!("Failed to pause sink during device change: {}", e);
+                    }
+                    if let Err(e) = self.sink.clear() {
+                        let error_msg = e.to_string();
+                        if error_msg.contains("device") || error_msg.contains("no longer available") {
+                            tracing::warn!("Device already removed during clear: {}", error_msg);
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                    self.set_target_status(Status::Paused);
+                    self.broadcast.send(Notification::Info(
+                        "Audio device changed. Please resume playback.".to_string()
+                    ));
+                }
+            }
+        } else {
+            tracing::info!("Player: Device changed while not playing");
+            let tracklist = self.tracklist_rx.borrow();
+            if let Some(_current_track) = tracklist.current_track() {
+                let _current_position = self.sink.position();
+                let _position_ms = _current_position.as_millis() as u64;
+            }
+            
+            if let Err(e) = self.sink.clear() {
+                let error_msg = e.to_string();
+                if error_msg.contains("device") || error_msg.contains("no longer available") {
+                    tracing::warn!("Device already removed during clear: {}", error_msg);
+                } else {
+                    tracing::warn!("Failed to clear stream during device change: {}", error_msg);
+                }
+            }
+        }
+        
+        Ok(())
+    }
+
     async fn play_pause(&mut self) -> Result<()> {
         let target_status = *self.target_status.borrow();
 
@@ -135,7 +255,7 @@ impl Player {
             self.query_track(&current_track, false).await?;
         } else {
             self.set_target_status(Status::Playing);
-            self.sink.play();
+            self.sink.play()?;
         }
 
         Ok(())
@@ -143,7 +263,9 @@ impl Player {
 
     fn pause(&mut self) {
         self.set_target_status(Status::Paused);
-        self.sink.pause();
+        if let Err(e) = self.sink.pause() {
+            tracing::warn!("Failed to pause sink: {}", e);
+        }
     }
 
     fn set_target_status(&self, status: Status) {
@@ -167,22 +289,47 @@ impl Player {
             .ensure_track_is_downloaded(track_url, track)
             .await
         {
-            let query_result = self.sink.query_track(&track_path)?;
-
-            if next_track {
-                self.next_track_in_sink_queue = match query_result {
-                    QueryTrackResult::Queued => {
-                        tracing::info!("In queue");
-                        true
+            match self.sink.query_track(&track_path) {
+                Ok(query_result) => {
+                    if next_track {
+                        self.next_track_in_sink_queue = match query_result {
+                            QueryTrackResult::Queued => {
+                                tracing::info!("In queue");
+                                true
+                            }
+                            QueryTrackResult::RecreateStreamRequired => {
+                                tracing::info!("Not in queue");
+                                false
+                            }
+                        };
                     }
-                    QueryTrackResult::RecreateStreamRequired => {
-                        tracing::info!("Not in queue");
-                        false
+                    if let Err(e) = self.sink.play() {
+                        tracing::warn!("Failed to play sink: {}", e);
                     }
-                };
+                    self.set_target_status(Status::Playing);
+                }
+                Err(e) => {
+                    let error_msg = e.to_string();
+                    tracing::error!("Failed to query track: {}", error_msg);
+                    
+                    if error_msg.contains("device") || error_msg.contains("no longer available") {
+                        tracing::warn!("Audio device error detected during play, pausing and resetting to default");
+                        self.set_target_status(Status::Paused);
+                        
+                        self.sink.set_device(None);
+                        
+                        if let Err(db_err) = self.database.set_audio_device(None).await {
+                            tracing::error!("Failed to update database after device error: {}", db_err);
+                        }
+                        
+                        self.broadcast.send(Notification::Warning(
+                            "Audio device error. Resetting to default device.".to_string()
+                        ));
+                        return Ok(());
+                    }
+                    return Err(e);
+                }
             }
-            self.sink.play();
-            self.set_target_status(Status::Playing);
         } else {
             tracing::info!("Buffering track: {}", &track.title);
             self.set_target_status(Status::Buffering);
@@ -538,6 +685,25 @@ impl Player {
             ControlCommand::SetVolume { volume } => {
                 self.set_volume(volume).await?;
             }
+            ControlCommand::SetAudioDevice { device_name } => {
+                tracing::info!("Player: Received SetAudioDevice command: {:?}", device_name);
+                if let Err(e) = self.database.set_audio_device(device_name.clone()).await {
+                    tracing::error!("Failed to save audio device to database: {}", e);
+                    self.broadcast.send(Notification::Error(
+                        format!("Failed to save audio device: {}", e)
+                    ));
+                } else {
+                    if let Err(e) = self.set_audio_device(device_name).await {
+                        tracing::error!("Failed to set audio device: {}", e);
+                        self.broadcast.send(Notification::Error(
+                            format!("Failed to set audio device: {}", e)
+                        ));
+                    } else {
+                        let notification = Notification::Success("Audio device updated".to_string());
+                        self.broadcast.send(notification);
+                    }
+                }
+            }
             ControlCommand::AddTrackToQueue { id } => self.add_track_to_queue(id).await?,
             ControlCommand::RemoveIndexFromQueue { index } => {
                 self.remove_index_from_queue(index).await?
@@ -562,14 +728,30 @@ impl Player {
                     tracing::info!(
                         "Track finished and next track is not in queue. Resetting queue"
                     );
-                    self.sink.clear()?;
-                    self.query_track(next_track, false).await?;
+                    if let Err(e) = self.sink.clear() {
+                        let error_msg = e.to_string();
+                        if error_msg.contains("device") || error_msg.contains("no longer available") {
+                            tracing::warn!("Device error during clear: {}", error_msg);
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                    if let Err(e) = self.query_track(next_track, false).await {
+                        let error_msg = e.to_string();
+                        if error_msg.contains("device") || error_msg.contains("no longer available") {
+                            tracing::warn!("Device error during query_track: {} - already handled", error_msg);
+                            return Ok(());
+                        }
+                        return Err(e);
+                    }
                 }
             }
             None => {
                 tracklist.reset();
                 self.set_target_status(Status::Paused);
-                self.sink.pause();
+                if let Err(e) = self.sink.pause() {
+                    tracing::warn!("Failed to pause sink: {}", e);
+                }
                 self.sink.clear()?;
                 self.position.send(Default::default())?;
             }
@@ -586,14 +768,52 @@ impl Player {
 
         tracing::info!("Done buffering track: {}", path.to_string_lossy());
 
-        self.next_track_in_sink_queue = match self.sink.query_track(&path)? {
-            QueryTrackResult::Queued => true,
-            QueryTrackResult::RecreateStreamRequired => false,
-        };
+        match self.sink.query_track(&path) {
+            Ok(result) => {
+                self.next_track_in_sink_queue = match result {
+                    QueryTrackResult::Queued => true,
+                    QueryTrackResult::RecreateStreamRequired => false,
+                };
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                tracing::error!("Failed to query track: {}", error_msg);
+                
+                if error_msg.contains("device") || error_msg.contains("no longer available") {
+                    tracing::warn!("Audio device error detected, pausing playback and resetting to default");
+                    if let Err(e) = self.sink.pause() {
+                        tracing::warn!("Failed to pause sink: {}", e);
+                    }
+                    self.set_target_status(Status::Paused);
+                    
+                    self.sink.set_device(None);
+                    
+                    let database = self.database.clone();
+                    tokio::spawn(async move {
+                        if let Err(db_err) = database.set_audio_device(None).await {
+                            tracing::error!("Failed to update database after device error: {}", db_err);
+                        }
+                    });
+                    
+                    self.broadcast.send(Notification::Warning(
+                        "Audio device error. Resetting to default device.".to_string()
+                    ));
+                    return Ok(());
+                }
+                return Err(e);
+            }
+        }
         Ok(())
     }
 
     pub async fn player_loop(&mut self, mut exit_receiver: ExitReceiver) -> Result<()> {
+        if let Ok(config) = self.database.get_configuration().await {
+            if let Some(device_name) = config.audio_device_name {
+                tracing::info!("Setting initial audio device from database: {}", device_name);
+                self.sink.set_device(Some(device_name));
+            }
+        }
+
         let mut interval = tokio::time::interval(Duration::from_millis(INTERVAL_MS));
 
         loop {
@@ -612,14 +832,22 @@ impl Player {
 
                 Ok(_) = self.track_finished.changed() => {
                     if let Err(err) = self.track_finished().await {
-                        self.broadcast.send_error(err.to_string());
+                        let error_msg = err.to_string();
+                        if !error_msg.contains("device") && !error_msg.contains("no longer available") {
+                            self.broadcast.send_error(error_msg);
+                        }
                     };
                 }
 
                 Ok(_) = self.done_buffering.changed() => {
                     let path = self.done_buffering.borrow_and_update().clone();
                     if let Err(err) = self.done_buffering(path) {
-                        self.broadcast.send_error(err.to_string());
+                        let error_msg = err.to_string();
+                        if error_msg.contains("device") || error_msg.contains("no longer available") {
+                            tracing::warn!("Device error in done_buffering: {} - already handled", error_msg);
+                        } else {
+                            self.broadcast.send_error(error_msg);
+                        }
                     };
                 }
                 Ok(exit) = exit_receiver.recv() => {
