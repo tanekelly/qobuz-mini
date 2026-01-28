@@ -51,6 +51,7 @@ async fn track_action(
     match req.action {
         TrackAction::AddFavorite => {
             ok_or_send_error_toast(&state, state.client.add_favorite_track(req.track_id).await)?;
+            state.clear_library_cache().await;
             state.send_sse("tracklist".into(), "New favorite track".into());
             Ok(state.send_toast(Notification::Info("Track added to library".into())))
         }
@@ -59,6 +60,7 @@ async fn track_action(
                 &state,
                 state.client.remove_favorite_track(req.track_id).await,
             )?;
+            state.clear_library_cache().await;
             state.send_sse("tracklist".into(), "Removed favorite track".into());
             Ok(state.send_toast(Notification::Info("Track removed from library".into())))
         }

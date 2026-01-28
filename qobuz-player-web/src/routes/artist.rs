@@ -97,6 +97,7 @@ async fn play_top_track(
 
 async fn set_favorite(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> ResponseResult {
     ok_or_send_error_toast(&state, state.client.add_favorite_artist(id).await)?;
+    state.clear_library_cache().await;
 
     Ok(state.render(
         "toggle-favorite.html",
@@ -106,6 +107,7 @@ async fn set_favorite(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -
 
 async fn unset_favorite(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> ResponseResult {
     ok_or_send_error_toast(&state, state.client.remove_favorite_artist(id).await)?;
+    state.clear_library_cache().await;
 
     Ok(state.render(
         "toggle-favorite.html",

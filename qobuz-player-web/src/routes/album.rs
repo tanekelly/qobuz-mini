@@ -34,6 +34,7 @@ async fn set_favorite(
     Path(id): Path<String>,
 ) -> ResponseResult {
     ok_or_send_error_toast(&state, state.client.add_favorite_album(&id).await)?;
+    state.clear_library_cache().await;
 
     Ok(state.render(
         "toggle-favorite.html",
@@ -46,6 +47,7 @@ async fn unset_favorite(
     Path(id): Path<String>,
 ) -> ResponseResult {
     ok_or_send_error_toast(&state, state.client.remove_favorite_album(&id).await)?;
+    state.clear_library_cache().await;
 
     Ok(state.render(
         "toggle-favorite.html",

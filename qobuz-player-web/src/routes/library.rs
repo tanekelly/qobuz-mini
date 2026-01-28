@@ -9,7 +9,7 @@ use serde_json::json;
 
 use crate::{AppState, ResponseResult, ok_or_error_page};
 
-#[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 enum Tab {
     Albums,

@@ -1,5 +1,4 @@
 use axum::response::{Html, IntoResponse, Response};
-use futures::try_join;
 use qobuz_player_controls::{
     ExitSender, PositionReceiver, Result, Status, StatusReceiver, TracklistReceiver, VolumeReceiver,
     client::Client,
@@ -12,9 +11,43 @@ use qobuz_player_rfid::RfidState;
 use serde_json::json;
 use skabelon::Templates;
 use std::sync::Arc;
-use tokio::sync::{broadcast::Sender, watch};
+use std::time::{Duration, Instant};
+use tokio::{sync::{broadcast::Sender, RwLock, watch}, try_join};
 
 use crate::{AlbumData, ServerSentEvent};
+
+pub(crate) struct LibraryCache {
+    value: Option<Library>,
+    created: Option<Instant>,
+}
+
+impl LibraryCache {
+    pub(crate) fn new() -> Self {
+        Self {
+            value: None,
+            created: None,
+        }
+    }
+
+    fn get(&self, ttl: Duration) -> Option<Library> {
+        if let (Some(value), Some(created)) = (&self.value, &self.created) {
+            if created.elapsed() < ttl {
+                return Some(value.clone());
+            }
+        }
+        None
+    }
+
+    fn set(&mut self, value: Library) {
+        self.value = Some(value);
+        self.created = Some(Instant::now());
+    }
+
+    fn clear(&mut self) {
+        self.value = None;
+        self.created = None;
+    }
+}
 
 pub struct AppState {
     pub tx: Sender<ServerSentEvent>,
@@ -30,6 +63,7 @@ pub struct AppState {
     pub templates: watch::Receiver<Templates>,
     pub database: Arc<Database>,
     pub exit_sender: ExitSender,
+    pub library_cache: Arc<RwLock<LibraryCache>>,
 }
 
 impl AppState {
@@ -37,23 +71,17 @@ impl AppState {
     where
         T: serde::Serialize,
     {
-        let tracklist = self.tracklist_receiver.borrow().clone();
-        let current_track = tracklist.current_track().cloned();
+        let tracklist = self.tracklist_receiver.borrow();
+        let current_track = tracklist.current_track();
         let status = *self.status_receiver.borrow();
-        let artist_name = current_track
-            .as_ref()
-            .and_then(|track| track.artist_name.clone());
-        let artist_id = current_track.as_ref().and_then(|track| track.artist_id);
 
-        let (title, artist_link) =
-            current_track
-                .as_ref()
-                .map_or((String::default(), None), |track| {
-                    (
-                        track.title.clone(),
-                        artist_id.map(|id| format!("/artist/{id}")),
-                    )
-                });
+        let (title, artist_link, artist_name) = current_track
+            .map(|track| (
+                track.title.clone(),
+                track.artist_id.map(|id| format!("/artist/{id}")),
+                track.artist_name.clone(),
+            ))
+            .unwrap_or_else(|| (String::default(), None, None));
 
         let entity = tracklist.entity_playing();
         let now_playing_id = tracklist.currently_playing();
@@ -69,13 +97,12 @@ impl AppState {
             cover_image: entity.cover_link,
         };
 
-        let playing_info = serde_json::json!({"playing_info": playing_info});
-
-        let context = merge_serialized(&playing_info, context).unwrap();
+        let playing_info_json = json!({"playing_info": playing_info});
+        let context = merge_serialized(&playing_info_json, context).unwrap();
         let templates = self.templates.borrow();
-        let render = templates.render(view, &context);
+        let rendered = templates.render(view, &context);
 
-        Html(render).into_response()
+        Html(rendered).into_response()
     }
 
     pub fn send_toast(&self, message: Notification) -> Response {
@@ -102,7 +129,28 @@ impl AppState {
     }
 
     pub async fn get_library(&self) -> Result<Library> {
-        self.client.library().await
+        const CACHE_TTL: Duration = Duration::from_secs(30);
+        
+        {
+            let cache = self.library_cache.read().await;
+            if let Some(cached) = cache.get(CACHE_TTL) {
+                return Ok(cached);
+            }
+        }
+
+        let library = self.client.library().await?;
+        
+        {
+            let mut cache = self.library_cache.write().await;
+            cache.set(library.clone());
+        }
+        
+        Ok(library)
+    }
+
+    pub async fn clear_library_cache(&self) {
+        let mut cache = self.library_cache.write().await;
+        cache.clear();
     }
 
     pub async fn get_album(&self, id: &str) -> Result<AlbumData> {
@@ -143,9 +191,7 @@ fn merge_serialized<T: serde::Serialize, Y: serde::Serialize>(
     if let (serde_json::Value::Object(info_map), serde_json::Value::Object(extra_map)) =
         (&mut info_value, extra_value)
     {
-        for (k, v) in extra_map {
-            info_map.insert(k, v);
-        }
+        info_map.extend(extra_map);
     }
 
     Ok(info_value)

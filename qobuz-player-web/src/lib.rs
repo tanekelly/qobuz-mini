@@ -22,7 +22,7 @@ use skabelon::Templates;
 use std::{convert::Infallible, env, sync::Arc};
 use tokio::sync::{
     broadcast::{self, Receiver, Sender},
-    watch,
+    watch, RwLock,
 };
 use tokio_stream::StreamExt as _;
 use tokio_stream::wrappers::BroadcastStream;
@@ -151,6 +151,7 @@ async fn create_router(
         templates: templates_rx.clone(),
         database,
         exit_sender,
+        library_cache: Arc::new(RwLock::new(app_state::LibraryCache::new())),
     });
 
     tokio::spawn(background_task(
@@ -214,17 +215,17 @@ async fn background_task(
                 _ = tx.send(event);
             },
             Ok(_) = volume.changed() => {
-                let volume = *volume.borrow_and_update();
-                let volume = (volume * 100.0) as u32;
+                let volume_value = *volume.borrow_and_update();
+                let volume_percent = (volume_value * 100.0) as u32;
                 let event = ServerSentEvent {
                     event_name: "volume".into(),
-                    event_data: volume.to_string(),
+                    event_data: volume_percent.to_string(),
                 };
                 _ = tx.send(event);
             }
             Ok(_) = status.changed() => {
-                let status = status.borrow_and_update();
-                let message_data = match *status {
+                let current_status = *status.borrow_and_update();
+                let status_string = match current_status {
                     Status::Paused => "pause",
                     Status::Playing => "play",
                     Status::Buffering => "buffering",
@@ -232,42 +233,30 @@ async fn background_task(
 
                 let event = ServerSentEvent {
                     event_name: "status".into(),
-                    event_data: message_data.into(),
+                    event_data: status_string.into(),
                 };
                 _ = tx.send(event);
             }
-            notification = receiver.recv() => {
-                tracing::info!("notification: {:?}", notification);
-                if let Ok(message) = notification {
-                        let (message_string, severity) = match &message {
-                            Notification::Error(message) => (message, 1),
-                            Notification::Warning(message) => (message, 2),
-                            Notification::Success(message) => (message, 3),
-                            Notification::Info(message) => (message, 4),
-                        };
+            notification_result = receiver.recv() => {
+                if let Ok(notification) = notification_result {
+                    let (message_string, severity) = match &notification {
+                        Notification::Error(message) => (message, 1),
+                        Notification::Warning(message) => (message, 2),
+                        Notification::Success(message) => (message, 3),
+                        Notification::Info(message) => (message, 4),
+                    };
 
                     let toast = templates.borrow().render("toast.html", &json!({"message": message_string, "severity": severity}));
-                    let event = match message {
-                        Notification::Error(_) => ServerSentEvent {
-                            event_name: "error".into(),
-                            event_data: toast,
-                        },
-                        Notification::Warning(_) => {
-                            ServerSentEvent {
-                                event_name: "warn".into(),
-                                event_data: toast,
-                            }
-                        }
-                        Notification::Success(_) => {
-                            ServerSentEvent {
-                                event_name: "success".into(),
-                                event_data: toast,
-                            }
-                        }
-                        Notification::Info(_) => ServerSentEvent {
-                            event_name: "info".into(),
-                            event_data: toast,
-                        },
+                    let event_name = match notification {
+                        Notification::Error(_) => "error",
+                        Notification::Warning(_) => "warn",
+                        Notification::Success(_) => "success",
+                        Notification::Info(_) => "info",
+                    };
+
+                    let event = ServerSentEvent {
+                        event_name: event_name.into(),
+                        event_data: toast,
                     };
                     _ = tx.send(event);
                 }
