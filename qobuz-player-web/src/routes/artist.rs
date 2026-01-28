@@ -128,8 +128,8 @@ async fn content(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> Res
         ),
     )?;
 
-    let favorites = ok_or_send_error_toast(&state, state.get_favorites().await)?;
-    let is_favorite = favorites.artists.iter().any(|artist| artist.id == id);
+    let library = ok_or_send_error_toast(&state, state.get_library().await)?;
+    let is_favorite = library.artists.iter().any(|artist| artist.id == id);
     let click_string = format!("/artist/{}/play-top-track/", artist.id);
     let top_tracks: Vec<_> = artist.top_tracks.iter().take(5).collect();
 

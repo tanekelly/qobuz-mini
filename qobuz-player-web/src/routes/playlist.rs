@@ -120,7 +120,7 @@ async fn add_track_to_playlist_page(
     let track = state.client.track(id).await;
     let track = ok_or_send_error_toast(&state, track)?;
 
-    let playlists = state.get_favorites().await;
+    let playlists = state.get_library().await;
     let playlists = ok_or_send_error_toast(&state, playlists)?;
     let playlists: Vec<_> = playlists
         .playlists
@@ -165,7 +165,7 @@ async fn delete(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> Resp
     let res = state.client.delete_playlist(id).await;
     ok_or_send_error_toast(&state, res)?;
 
-    Ok(hx_redirect("/favorites/playlists"))
+    Ok(hx_redirect("/library/playlists"))
 }
 
 async fn play_track(
@@ -220,8 +220,8 @@ async fn index(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> impl 
 
 async fn content(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> ResponseResult {
     let playlist = ok_or_send_error_toast(&state, state.client.playlist(id).await)?;
-    let favorites = ok_or_send_error_toast(&state, state.get_favorites().await)?;
-    let is_favorite = favorites.playlists.iter().any(|playlist| playlist.id == id);
+    let library = ok_or_send_error_toast(&state, state.get_library().await)?;
+    let is_favorite = library.playlists.iter().any(|playlist| playlist.id == id);
     let duration = playlist.duration_seconds / 60;
     let click_string = format!("/playlist/{}/play/", playlist.id);
 

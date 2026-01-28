@@ -64,10 +64,16 @@
         ) {}
       </div>
       <div class="flex flex-col gap-4">
-        <div class="flex h-10 flex-row justify-center gap-2">
-          @defer (previous.html) {}
-          @defer (player-state.html; playing_info=playing_info) {}
-          @defer (next.html) {}
+        <div class="flex h-10 flex-row items-center justify-center gap-6">
+          <div class="flex h-8 w-8 items-center justify-center">
+            @defer (previous.html) {}
+          </div>
+          <div class="flex h-10 w-30 items-center justify-center">
+            @defer (player-state.html; playing_info=playing_info) {}
+          </div>
+          <div class="flex h-8 w-8 items-center justify-center">
+            @defer (next.html) {}
+          </div>
         </div>
         @defer (volume-slider.html; current_volume=current_volume) {}
       </div>

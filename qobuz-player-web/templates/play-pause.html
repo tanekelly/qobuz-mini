@@ -1,13 +1,23 @@
 <button
-  class="cursor-pointer transition-colors"
+  class="flex h-full w-full cursor-pointer items-center justify-center transition-colors"
   hx-swap="none"
   hx-put="@if (playing_info.status == 'Playing') {/api/pause} @else {/api/play}"
 >
   @if (playing_info.status == "Playing") {
-    @defer (icons/pause.html) {}
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1034 1024" width="100%" height="100%">
+      <g transform="matrix(1 0 0 -1 0 960)">
+        <path fill="currentColor" d="M83 953h252q21 0 36 -14.5t15 -35.5v-910q0 -21 -15 -35.5t-36 -14.5h-252q-21 0 -36 14.5t-15 35.5v910q0 21 15 35.5t36 14.5v0zM689 953h252q21 0 36 -14.5t15 -35.5v-910q0 -21 -15 -35.5t-36 -14.5h-252q-21 0 -36 14.5t-15 35.5v910q0 21 15 35.5t36 14.5z" />
+      </g>
+    </svg>
   } @else if (playing_info.status == "Buffering") {
-    @defer (icons/loading-spinner.html) {}
+    <span class="flex h-full w-full items-center justify-center">
+      @defer (icons/loading-spinner.html) {}
+    </span>
   } @else {
-    @defer (icons/play.html) {}
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 970 1024" width="100%" height="100%">
+      <g transform="matrix(1 0 0 -1 0 960)">
+        <path fill="currentColor" d="M31 910v-924q0 -21 14.5 -35.5t35.5 -14.5q6 0 12.5 1.5t12.5 5.5l798 462q18 10 23.5 30t-5.5 38q-3 6 -7.5 10.5t-10.5 7.5l-798 462q-18 11 -38 5.5t-30 -23.5q-4 -6 -5.5 -12t-1.5 -13v0z" />
+      </g>
+    </svg>
   }
 </button>

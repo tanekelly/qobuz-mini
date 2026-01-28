@@ -118,10 +118,10 @@ impl TrackList {
                 if let Some(selected) = selected {
                     client.add_favorite_track(selected.id).await?;
                     notifications.push(Notification::Info(format!(
-                        "{} added to favorites",
+                        "{} added to library",
                         selected.title
                     )));
-                    return Ok(Output::UpdateFavorites);
+                    return Ok(Output::UpdateLibrary);
                 }
 
                 Ok(Output::Consumed)
@@ -134,10 +134,10 @@ impl TrackList {
                 if let Some(selected) = selected {
                     client.remove_favorite_track(selected.id).await?;
                     notifications.push(Notification::Info(format!(
-                        "{} removed from favorites",
+                        "{} removed from library",
                         selected.title
                     )));
-                    return Ok(Output::UpdateFavorites);
+                    return Ok(Output::UpdateLibrary);
                 }
                 Ok(Output::Consumed)
             }

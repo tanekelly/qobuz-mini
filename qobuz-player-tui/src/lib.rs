@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use app::{App, get_current_state};
-use favorites::FavoritesState;
+use library::LibraryState;
 use qobuz_player_controls::{
     database::Database, ExitSender, PositionReceiver, Result, StatusReceiver, TracklistReceiver,
     client::Client, controls::Controls, error::Error, notification::NotificationBroadcast,
@@ -12,7 +12,7 @@ use ui::center;
 
 mod app;
 mod discover;
-mod favorites;
+mod library;
 mod now_playing;
 mod popup;
 mod queue;
@@ -58,7 +58,7 @@ pub async fn init(
         should_draw: true,
         app_state: Default::default(),
         disable_tui_album_cover,
-        favorites: FavoritesState::new(&client).await?,
+        library: LibraryState::new(&client).await?,
         search: Default::default(),
         queue: QueueState::new(queue),
         discover: discover::DiscoverState::new(&client).await?,

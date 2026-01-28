@@ -30,7 +30,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use crate::{
     app_state::AppState,
     routes::{
-        album, api, artist, auth, controls, discover, favorites, now_playing, playlist, queue,
+        album, api, artist, auth, controls, discover, library, now_playing, playlist, queue,
         search, settings,
     },
     views::templates,
@@ -172,7 +172,7 @@ async fn create_router(
         .merge(album::routes())
         .merge(artist::routes())
         .merge(playlist::routes())
-        .merge(favorites::routes())
+        .merge(library::routes())
         .merge(discover::routes())
         .merge(controls::routes())
         .merge(settings::routes())

@@ -25,14 +25,14 @@
           <span class="truncate text-gray-500">{{ playing_info.title }}</span>
         </div>
       </a>
-      <div class="flex items-center gap-4">
-        <span class="hidden w-8 sm:flex">
+      <div class="flex items-center gap-6">
+        <span class="hidden h-8 w-8 items-center justify-center sm:flex">
           @defer (previous.html) {}
         </span>
-        <span class="flex w-8">
+        <span class="flex h-10 w-30 items-center justify-center">
           @defer (player-state.html; playing_info=playing_info) {}
         </span>
-        <span class="flex w-8">
+        <span class="flex h-8 w-8 items-center justify-center">
           @defer (next.html) {}
         </span>
       </div>

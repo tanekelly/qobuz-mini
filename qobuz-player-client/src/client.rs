@@ -7,7 +7,7 @@ use crate::{
         },
         artist::{self, ArtistsResponse},
         artist_page,
-        favorites::Favorites,
+        library::Library,
         featured::{FeaturedAlbumsResponse, FeaturedPlaylistsResponse},
         playlist::{self, UserPlaylistsResult},
         search_results::SearchAllResults,
@@ -122,7 +122,7 @@ enum Endpoint {
     PlaylistDeleteTracks,
     PlaylistUpdatePosition,
     Search,
-    Favorites,
+    Library,
     FavoriteAdd,
     FavoriteRemove,
     FavoritePlaylistAdd,
@@ -151,7 +151,7 @@ impl Display for Endpoint {
             Endpoint::Track => "track/get",
             Endpoint::TrackURL => "track/getFileUrl",
             Endpoint::UserPlaylist => "playlist/getUserPlaylists",
-            Endpoint::Favorites => "favorite/getUserFavorites",
+            Endpoint::Library => "favorite/getUserFavorites",
             Endpoint::FavoriteAdd => "favorite/create",
             Endpoint::FavoriteRemove => "favorite/delete",
             Endpoint::FavoritePlaylistAdd => "playlist/subscribe",
@@ -430,17 +430,17 @@ impl Client {
         .await
     }
 
-    pub async fn favorites(&self, limit: i32) -> Result<qobuz_player_models::Favorites> {
+    pub async fn library(&self, limit: i32) -> Result<qobuz_player_models::Library> {
         let mut favorite_playlists = self.user_playlists().await?;
 
-        let endpoint = format!("{}{}", self.base_url, Endpoint::Favorites);
+        let endpoint = format!("{}{}", self.base_url, Endpoint::Library);
 
         let limit = limit.to_string();
         let params = vec![("limit", limit.as_str())];
 
-        let response: Favorites = get!(self, &endpoint, Some(&params))?;
+        let response: Library = get!(self, &endpoint, Some(&params))?;
 
-        let Favorites {
+        let Library {
             albums,
             tracks,
             artists,
@@ -454,10 +454,10 @@ impl Client {
 
         favorite_playlists.sort_by(|a, b| a.title.cmp(&b.title));
 
-        Ok(qobuz_player_models::Favorites {
+        Ok(qobuz_player_models::Library {
             albums: albums
                 .into_iter()
-                .map(|x| parse_album(x, &self.max_audio_quality).into())
+                .map(|x| parse_album(x, &self.max_audio_quality))
                 .collect(),
             artists: artists.into_iter().map(parse_artist).collect(),
             playlists: favorite_playlists,
@@ -1016,7 +1016,6 @@ fn parse_featured_albums(
                     available: value.streamable,
                     image: value.image.large,
                     duration_seconds: value.duration,
-                    release_year: extract_year(&value.release_date_original),
                 })
                 .collect::<Vec<_>>();
 
@@ -1103,14 +1102,13 @@ fn parse_album_simple(
         available: s.rights.streamable,
         image: s.image.large,
         duration_seconds: s.duration,
-        release_year: extract_year(&s.dates.original),
     }
 }
 
-fn extract_year(date_str: &str) -> u32 {
+fn extract_year(date_str: &str) -> i32 {
     let format = format_description!("[year]-[month]-[day]");
     let date = time::Date::parse(date_str, &format).expect("failed to parse date");
-    date.year() as u32
+    date.year()
 }
 
 fn parse_album(

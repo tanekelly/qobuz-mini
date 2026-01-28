@@ -383,7 +383,7 @@ impl Popup {
                         client
                             .create_playlist(input.to_string(), false, Default::default(), None)
                             .await?;
-                        Ok(Output::PopPoputUpdateFavorites)
+                        Ok(Output::PopPoputUpdateLibrary)
                     }
                     _ => {
                         state.name.handle_event(&event);
@@ -394,10 +394,10 @@ impl Popup {
                     KeyCode::Enter => {
                         if state.confirm {
                             client.delete_playlist(state.id).await?;
-                            return Ok(Output::PopPoputUpdateFavorites);
+                            return Ok(Output::PopPoputUpdateLibrary);
                         }
 
-                        Ok(Output::PopPoputUpdateFavorites)
+                        Ok(Output::PopPoputUpdateLibrary)
                     }
                     KeyCode::Left | KeyCode::Right => {
                         state.confirm = !state.confirm;

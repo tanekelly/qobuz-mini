@@ -79,7 +79,7 @@ impl App {
         };
 
         match self.current_screen {
-            Tab::Favorites => self.favorites.render(frame, tab_content_area),
+            Tab::Library => self.library.render(frame, tab_content_area),
             Tab::Search => self.search.render(frame, tab_content_area),
             Tab::Queue => self.queue.render(frame, tab_content_area),
             Tab::Discover => self.discover.render(frame, tab_content_area),
@@ -199,8 +199,8 @@ fn render_help(frame: &mut Frame) {
         ["Delete from queue", "D"],
         ["Move up in queue", "u"],
         ["Move down in queue", "d"],
-        ["Remove from favorites", "D"],
-        ["Add to favorites", "A"],
+        ["Remove from library", "D"],
+        ["Add to library", "A"],
         ["Create playlist", "C (playlist page)"],
         ["Delete playlist", "D (playlist page)"],
         ["Add track to playlist", "a"],

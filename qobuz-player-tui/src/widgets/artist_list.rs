@@ -74,12 +74,12 @@ impl ArtistList {
                     client.add_favorite_artist(selected.id).await?;
 
                     notifications.push(Notification::Info(format!(
-                        "{} added to favorites",
+                        "{} added to library",
                         selected.name
                     )));
-                    return Ok(Output::UpdateFavorites);
+                    return Ok(Output::UpdateLibrary);
                 }
-                Ok(Output::UpdateFavorites)
+                Ok(Output::UpdateLibrary)
             }
 
             KeyCode::Char('D') => {
@@ -90,12 +90,12 @@ impl ArtistList {
                     client.remove_favorite_artist(selected.id).await?;
 
                     notifications.push(Notification::Info(format!(
-                        "{} removed from favorites",
+                        "{} removed from library",
                         selected.name
                     )));
-                    return Ok(Output::UpdateFavorites);
+                    return Ok(Output::UpdateLibrary);
                 }
-                Ok(Output::UpdateFavorites)
+                Ok(Output::UpdateLibrary)
             }
 
             KeyCode::Enter => {

@@ -64,10 +64,10 @@ impl AlbumSimpleList {
                     client.add_favorite_album(&selected.id).await?;
 
                     notifications.push(Notification::Info(format!(
-                        "{} added to favorites",
+                        "{} added to library",
                         selected.title
                     )));
-                    return Ok(Output::UpdateFavorites);
+                    return Ok(Output::UpdateLibrary);
                 };
 
                 Ok(Output::Consumed)
@@ -82,10 +82,10 @@ impl AlbumSimpleList {
                     client.remove_favorite_album(&selected.id).await?;
 
                     notifications.push(Notification::Info(format!(
-                        "{} removed from favorites",
+                        "{} removed from library",
                         selected.title
                     )));
-                    return Ok(Output::UpdateFavorites);
+                    return Ok(Output::UpdateLibrary);
                 }
 
                 Ok(Output::Consumed)

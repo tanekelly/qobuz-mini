@@ -1,6 +1,6 @@
 use crate::{
     discover::DiscoverState,
-    favorites::FavoritesState,
+    library::LibraryState,
     now_playing::NowPlayingState,
     popup::{Popup, TrackPopupState},
     queue::QueueState,
@@ -8,8 +8,6 @@ use crate::{
     settings::SettingsState,
 };
 use core::fmt;
-use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
-use futures::StreamExt;
 use image::load_from_memory;
 use qobuz_player_controls::{
     PositionReceiver, Result, Status, StatusReceiver, TracklistReceiver,
@@ -21,6 +19,8 @@ use qobuz_player_controls::{
     tracklist::Tracklist,
 };
 use qobuz_player_models::Track;
+use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
+use futures::StreamExt;
 use ratatui::{DefaultTerminal, widgets::*};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 use std::{io, sync::Arc, time::Instant};
@@ -61,7 +61,7 @@ pub struct App {
     pub should_draw: bool,
     pub app_state: AppState,
     pub now_playing: NowPlayingState,
-    pub favorites: FavoritesState,
+    pub library: LibraryState,
     pub search: SearchState,
     pub queue: QueueState,
     pub discover: DiscoverState,
@@ -85,16 +85,16 @@ pub enum AppState {
 pub enum Output {
     Consumed,
     NotConsumed,
-    UpdateFavorites,
+    UpdateLibrary,
     Popup(Popup),
-    PopPoputUpdateFavorites,
+    PopPoputUpdateLibrary,
     AddTrackToPlaylist(Track),
 }
 
 #[derive(Default, PartialEq)]
 pub enum Tab {
     #[default]
-    Favorites,
+    Library,
     Search,
     Queue,
     Discover,
@@ -104,7 +104,7 @@ pub enum Tab {
 impl fmt::Display for Tab {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Tab::Favorites => write!(f, "Favorites"),
+            Tab::Library => write!(f, "Library"),
             Tab::Search => write!(f, "Search"),
             Tab::Queue => write!(f, "Queue"),
             Tab::Discover => write!(f, "Discover"),
@@ -115,7 +115,7 @@ impl fmt::Display for Tab {
 
 impl Tab {
     pub const VALUES: [Self; 5] = [
-        Tab::Favorites,
+        Tab::Library,
         Tab::Search,
         Tab::Queue,
         Tab::Discover,
@@ -242,17 +242,17 @@ impl App {
         Ok(())
     }
 
-    async fn update_favorites(&mut self) {
-        let favorites = self.client.favorites().await;
-        let Ok(favorites) = favorites else {
+    async fn update_library(&mut self) {
+        let library = self.client.library().await;
+        let Ok(library) = library else {
             return;
         };
 
-        self.favorites.albums.set_all_items(favorites.albums);
-        self.favorites.artists.set_all_items(favorites.artists);
-        self.favorites.playlists.set_all_items(favorites.playlists);
-        self.favorites.tracks.set_all_items(favorites.tracks);
-        self.favorites.filter.reset();
+        self.library.albums.set_all_items(library.albums);
+        self.library.artists.set_all_items(library.artists);
+        self.library.playlists.set_all_items(library.playlists);
+        self.library.tracks.set_all_items(library.tracks);
+        self.library.filter.reset();
     }
 
     async fn handle_output(&mut self, key_code: KeyCode, output: Result<Output>) {
@@ -269,8 +269,8 @@ impl App {
             Output::Consumed => {
                 self.should_draw = true;
             }
-            Output::UpdateFavorites => {
-                self.update_favorites().await;
+            Output::UpdateLibrary => {
+                self.update_library().await;
                 self.should_draw = true;
             }
 
@@ -284,7 +284,7 @@ impl App {
                     self.exit()
                 }
                 KeyCode::Char('1') => {
-                    self.navigate_to_favorites();
+                    self.navigate_to_library();
                     self.should_draw = true;
                 }
                 KeyCode::Char('2') => {
@@ -340,19 +340,19 @@ impl App {
                 self.app_state = AppState::Popup(popups);
                 self.should_draw = true;
             }
-            Output::PopPoputUpdateFavorites => {
+            Output::PopPoputUpdateLibrary => {
                 if let AppState::Popup(popups) = &mut self.app_state {
                     popups.pop();
                     if popups.is_empty() {
                         self.app_state = AppState::Normal;
                     }
-                    self.update_favorites().await;
+                    self.update_library().await;
                     self.should_draw = true;
                 }
             }
             Output::AddTrackToPlaylist(track) => {
-                let playlists_res = self.client.favorites().await.map(|favs| {
-                    favs.playlists
+                let playlists_res = self.client.library().await.map(|lib| {
+                    lib.playlists
                         .into_iter()
                         .filter(|p| p.is_owned)
                         .collect::<Vec<_>>()
@@ -423,8 +423,8 @@ impl App {
                 };
 
                 let screen_output = match self.current_screen {
-                    Tab::Favorites => {
-                        self.favorites
+                    Tab::Library => {
+                        self.library
                             .handle_events(
                                 event,
                                 &self.client,
@@ -465,8 +465,8 @@ impl App {
         Ok(())
     }
 
-    fn navigate_to_favorites(&mut self) {
-        self.current_screen = Tab::Favorites;
+    fn navigate_to_library(&mut self) {
+        self.current_screen = Tab::Library;
     }
 
     fn navigate_to_search(&mut self) {

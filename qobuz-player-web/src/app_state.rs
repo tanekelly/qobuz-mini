@@ -7,7 +7,7 @@ use qobuz_player_controls::{
     database::Database,
     notification::{Notification, NotificationBroadcast},
 };
-use qobuz_player_models::Favorites;
+use qobuz_player_models::Library;
 use qobuz_player_rfid::RfidState;
 use serde_json::json;
 use skabelon::Templates;
@@ -101,8 +101,8 @@ impl AppState {
         _ = self.tx.send(event);
     }
 
-    pub async fn get_favorites(&self) -> Result<Favorites> {
-        self.client.favorites().await
+    pub async fn get_library(&self) -> Result<Library> {
+        self.client.library().await
     }
 
     pub async fn get_album(&self, id: &str) -> Result<AlbumData> {
@@ -116,8 +116,8 @@ impl AppState {
     }
 
     pub async fn is_album_favorite(&self, id: &str) -> Result<bool> {
-        let favorites = self.get_favorites().await?;
-        Ok(favorites.albums.iter().any(|album| album.id == id))
+        let library = self.get_library().await?;
+        Ok(library.albums.iter().any(|album| album.id == id))
     }
 }
 

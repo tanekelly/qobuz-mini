@@ -17,8 +17,7 @@ use crate::{
     },
 };
 
-#[derive(Default)]
-pub struct SearchState {
+pub struct LibraryState {
     pub editing: bool,
     pub filter: Input,
     pub albums: AlbumList,
@@ -28,7 +27,21 @@ pub struct SearchState {
     pub sub_tab: SubTab,
 }
 
-impl SearchState {
+impl LibraryState {
+    pub async fn new(client: &Client) -> Result<Self> {
+        let library = client.library().await?;
+
+        Ok(Self {
+            editing: Default::default(),
+            filter: Default::default(),
+            albums: AlbumList::new(library.albums),
+            artists: ArtistList::new(library.artists),
+            playlists: PlaylistList::new(library.playlists),
+            tracks: TrackList::new(library.tracks),
+            sub_tab: Default::default(),
+        })
+    }
+
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         let tab_content_area_split = Layout::default()
             .constraints([Constraint::Length(3), Constraint::Min(1)])
@@ -39,7 +52,7 @@ impl SearchState {
             self.editing,
             tab_content_area_split[0],
             frame,
-            "Search",
+            "Filter",
         );
 
         let block = block(None);
@@ -88,22 +101,26 @@ impl SearchState {
                         }
                         _ => match self.sub_tab {
                             SubTab::Albums => {
-                                self.albums
+                                return self
+                                    .albums
                                     .handle_events(key_event.code, client, notifications)
-                                    .await
+                                    .await;
                             }
                             SubTab::Artists => {
-                                self.artists
+                                return self
+                                    .artists
                                     .handle_events(key_event.code, client, notifications)
-                                    .await
+                                    .await;
                             }
                             SubTab::Playlists => {
-                                self.playlists
+                                return self
+                                    .playlists
                                     .handle_events(key_event.code, client, notifications)
-                                    .await
+                                    .await;
                             }
                             SubTab::Tracks => {
-                                self.tracks
+                                return self
+                                    .tracks
                                     .handle_events(
                                         key_event.code,
                                         client,
@@ -111,18 +128,71 @@ impl SearchState {
                                         notifications,
                                         TrackListEvent::Track,
                                     )
-                                    .await
+                                    .await;
                             }
                         },
                     },
                     true => match key_event.code {
                         KeyCode::Esc | KeyCode::Enter => {
                             self.stop_editing();
-                            self.update_search(client).await?;
                             Ok(Output::Consumed)
                         }
                         _ => {
                             self.filter.handle_event(&event);
+
+                            let match_in = |s: &str| {
+                                s.to_lowercase()
+                                    .contains(&self.filter.value().to_lowercase())
+                            };
+
+                            self.albums.set_filter(
+                                self.albums
+                                    .all_items()
+                                    .iter()
+                                    .filter(|album| {
+                                        match_in(&album.title) || match_in(&album.artist.name)
+                                    })
+                                    .cloned()
+                                    .collect(),
+                            );
+
+                            self.artists.set_filter(
+                                self.artists
+                                    .all_items()
+                                    .iter()
+                                    .filter(|artist| match_in(&artist.name))
+                                    .cloned()
+                                    .collect(),
+                            );
+
+                            self.playlists.set_filter(
+                                self.playlists
+                                    .all_items()
+                                    .iter()
+                                    .filter(|playlist| match_in(&playlist.title))
+                                    .cloned()
+                                    .collect(),
+                            );
+
+                            self.tracks.set_filter(
+                                self.tracks
+                                    .all_items()
+                                    .iter()
+                                    .filter(|track| {
+                                        match_in(&track.title)
+                                            || track
+                                                .artist_name
+                                                .as_ref()
+                                                .is_some_and(|artist| match_in(artist))
+                                            || track
+                                                .album_title
+                                                .as_ref()
+                                                .is_some_and(|album| match_in(album))
+                                    })
+                                    .cloned()
+                                    .collect(),
+                            );
+
                             Ok(Output::Consumed)
                         }
                     },
@@ -130,19 +200,6 @@ impl SearchState {
             }
             _ => Ok(Output::NotConsumed),
         }
-    }
-
-    async fn update_search(&mut self, client: &Client) -> Result<()> {
-        if !self.filter.value().trim().is_empty() {
-            let search_results = client.search(self.filter.value().to_string()).await?;
-
-            self.albums.set_all_items(search_results.albums);
-            self.artists.set_all_items(search_results.artists);
-            self.playlists.set_all_items(search_results.playlists);
-            self.tracks.set_all_items(search_results.tracks);
-        }
-
-        Ok(())
     }
 
     fn start_editing(&mut self) {

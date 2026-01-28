@@ -10,7 +10,14 @@
     preload-images="true"
     class="@if (active_page == 'NowPlaying') {text-blue-500} @else {text-gray-500}"
   >
-    @defer (icons/play-circle.html) {}
+    <span class="size-6">
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 887 1024" width="100%" height="100%">
+        <g transform="matrix(1 0 0 -1 0 960)">
+          <path fill="currentColor" d="M334 236v-4v-11v-16.5v-19.5v-10.5v-10.5q1 -19 1 -34v-24v-25q0 -60 -45.5 -102.5t-108.5 -42.5h-27q-63 0 -108.5 42.5t-45.5 102.5v25q0 60 45.5 102.5t108.5 42.5h27h24h38h4h3h7h5v258.5v88.5v202q0 12 8.5 22t20.5 13l540 124q14 3 25 -4.5t11 -21.5v-152.5v-50.5
+v-444v-49v-36v-25q0 -60 -45.5 -102.5t-108.5 -42.5h-27q-63 0 -108.5 42.5t-45.5 102.5v25q0 60 45.5 102.5t108.5 42.5h27q9 0 24 -0.5t38 -0.5h5h4h6.5h4.5v340l-462 -105q1 -214 1 -257v-87v0z" />
+        </g>
+      </svg>
+    </span>
     Now Playing
   </a>
 
@@ -18,7 +25,13 @@
     href="/queue"
     class="@if (active_page == 'Queue') {text-blue-500} @else {text-gray-500}"
   >
-    @defer (icons/queue-list.html) {}
+    <span class="size-6">
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1044 1024" width="100%" height="100%">
+        <g transform="matrix(1 0 0 -1 0 960)">
+          <path fill="currentColor" d="M14 830l216 -122q3 -2 4.5 -6t-0.5 -7l-2 -2l-2 -2l-216 -122q-3 -2 -7 -1t-6 5q0 1 -0.5 2t-0.5 3v243q0 4 3 7t7 3h2t2 -1v0zM347 743h662q4 0 7 -3t3 -7v-63q0 -4 -3 -6.5t-7 -2.5h-663l1 82v0zM0 445h1024v-82h-1024v82v0zM0 147h1024v-82h-1024v82z" />
+        </g>
+      </svg>
+    </span>
     Queue
   </a>
   <a
@@ -27,27 +40,51 @@
     preload-images="true"
     class="@if (active_page == 'Discover') {text-blue-500} @else {text-gray-500}"
   >
-    @defer (icons/megaphone.html) {}
+    <span class="size-6">
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1042 1024" width="100%" height="100%">
+        <g transform="matrix(1 0 0 -1 0 960)">
+          <path fill="currentColor" d="M512 2q92 0 174 35q81 35 141.5 95.5t95.5 141.5q35 82 35 174t-35 174q-35 81 -95.5 141.5t-141.5 95.5q-82 35 -174 35t-174 -35q-81 -35 -141.5 -95.5t-95.5 -141.5q-35 -82 -35 -174t35 -174q35 -81 95.5 -141.5t141.5 -95.5q82 -35 174 -35zM512 -62q-106 0 -199 40
+t-162 109t-109 162t-40 199t40 199t109 162t162 109t199 40t199 -40t162 -109t109 -162t40 -199t-40 -199t-109 -162t-162 -109t-199 -40zM725 697l-296 -130q-15 -6 -26 -17.5t-18 -26.5l-130 -296q-3 -8 0 -16t11 -12q4 -2 8.5 -2t8.5 2l296 130q15 6 26.5 17.5t17.5 26.5
+l130 296q3 8 0 16t-11 12q-4 2 -8.5 2t-8.5 -2v0zM455 404q-19 18 -19 44t19 44q18 19 44 19t45 -19q18 -18 18 -44t-18 -44q-19 -19 -45 -19t-44 19v0z" />
+        </g>
+      </svg>
+    </span>
     Discover
   </a>
   <a
-    href="/favorites/albums"
-    href="/discover"
+    href="/library/albums"
     preload="mouseover"
-    class="@if (active_page == 'Favorites') {text-blue-500} @else {text-gray-500}"
+    class="@if (active_page == 'Library') {text-blue-500} @else {text-gray-500}"
   >
-    @defer (icons/star-solid.html) {}
-    Favorites
+    <span class="size-6">
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1034 1024" width="100%" height="100%">
+        <g transform="matrix(1 0 0 -1 0 960)">
+          <path fill="currentColor" d="M891 -64h-758q-13 0 -22 9t-9 22v758q0 13 9 22.5t22 9.5h758q13 0 22 -9.5t9 -22.5v-758q0 -13 -9 -22t-22 -9v0zM164 -1h696v695h-696v-695v0zM823 796h-622q-13 0 -22 9t-9 22t9 22t22 9h622q13 0 22 -9t9 -22t-9 -22t-22 -9zM755 897h-486q-13 0 -22.5 9.5t-9.5 22.5
+t9.5 22t22.5 9h486q13 0 22.5 -9t9.5 -22t-9.5 -22.5t-22.5 -9.5zM512 100q-51 0 -96 20q-44 19 -77.5 52.5t-52.5 78.5q-20 44 -20 95t20 96q19 45 52.5 78t77.5 53q45 19 96 19t96 -19q44 -20 77.5 -53t53.5 -78q19 -45 19 -96t-19 -95q-20 -45 -53.5 -78.5t-77.5 -52.5
+q-45 -20 -96 -20zM512 529q-76 0 -129.5 -53.5t-53.5 -129.5t53.5 -129.5t129.5 -53.5t129.5 53.5t53.5 129.5t-53.5 129.5t-129.5 53.5v0zM512 246q-41 0 -70.5 29.5t-29.5 70.5q0 42 29.5 71t70.5 29t70.5 -29t29.5 -71q0 -41 -29.5 -70.5t-70.5 -29.5zM512 384
+q-16 0 -27 -11t-11 -27q0 -15 11.5 -26t26.5 -11q16 0 27 11t11 26q0 16 -11 27t-27 11z" />
+        </g>
+      </svg>
+    </span>
+    Library
   </a>
 
   @if (active_page == "Search") {
     <button class="text-blue-500" onclick="focusSearchInput()">
-      @defer (icons/magnifying-glass.html) {}
+      <span class="size-6">
+        <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="100%" height="100%">
+          <path fill-rule="evenodd" fill="currentColor" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
+        </svg>
+      </span>
       Search
     </button>
   } @else {
     <a href="/search/albums" class="text-gray-500">
-      @defer (icons/magnifying-glass.html) {}
+      <span class="size-6">
+        <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="100%" height="100%">
+          <path fill-rule="evenodd" fill="currentColor" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
+        </svg>
+      </span>
       Search
     </a>
   }
@@ -55,6 +92,17 @@
     href="/settings"
     class="@if(active_page == "Settings"){text-blue-500}@else {text-gray-500}"
   >
-    @defer (icons/bars-2.html){} Settings
+    <span class="size-6">
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1034 1024" width="100%" height="100%">
+        <g transform="matrix(1 0 0 -1 0 960)">
+          <path fill="currentColor" d="M560 854h-393q-32 0 -55 -23.5t-23 -55.5v-624q0 -33 23 -56t55 -23h393q16 0 30 6t24 16t16 25t6 29v627q0 32 -23 55.5t-53 23.5v0zM581 151q0 -8 -6.5 -15t-14.5 -7h-393q-8 0 -14.5 7t-6.5 15v624q0 8 5.5 15t15.5 7h393q8 0 14.5 -7t6.5 -15v-624zM364 737v0
+q-66 0 -112 -46.5t-46 -111.5q0 -31 11.5 -60t34.5 -52q22 -22 50.5 -34t61.5 -12v0q65 0 111.5 46t46.5 112q0 32 -12 60.5t-35 50.5q-22 23 -51.5 35t-59.5 12v0zM364 478q-43 0 -72 30t-29 71t30 70.5t71 29.5q42 0 71 -29.5t29 -70.5t-30 -71t-70 -30zM364 633
+q-23 0 -39 -16t-16 -38q0 -23 16 -39t39 -16q22 0 38 16t16 39q0 22 -16 38t-38 16zM810 -50q4 -4 9.5 -6.5t9.5 -2.5q13 0 20.5 8.5t7.5 19.5v452h24q22 0 38 16t16 38v210q0 35 -20.5 62.5t-55.5 35.5h-2v144q0 6 -2.5 10.5t-6.5 8.5t-9.5 6.5t-9.5 2.5v0q-6 0 -10.5 -2.5
+t-8.5 -6.5t-6 -9.5t-2 -9.5v-144h-3q-32 -10 -54 -38t-22 -63v-209q0 -23 16 -39t39 -16h24v-452q0 -2 2 -7t6 -9v0zM780 685q0 20 14 33t33 13h5q20 0 33 -14t13 -32v-19h-98v19zM780 478v142h98v-142h-98zM459 200h-180q-12 0 -19.5 8.5t-7.5 18.5v0q0 13 8.5 20.5
+t18.5 7.5h180q12 0 19.5 -8.5t7.5 -19.5v0q0 -10 -7.5 -18.5t-19.5 -8.5z" />
+        </g>
+      </svg>
+    </span>
+    Settings
   </a>
 </nav>

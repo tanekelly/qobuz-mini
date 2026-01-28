@@ -1,7 +1,7 @@
 use moka::future::Cache;
 use qobuz_player_client::{client::AudioQuality, qobuz_models::TrackURL};
 use qobuz_player_models::{
-    Album, AlbumSimple, Artist, ArtistPage, Favorites, Playlist, SearchResults, Track,
+    Album, AlbumSimple, Artist, ArtistPage, Library, Playlist, SearchResults, Track,
 };
 use std::sync::OnceLock;
 use time::Duration;
@@ -19,7 +19,7 @@ pub struct Client {
     password: String,
     max_audio_quality: AudioQuality,
     client_initiated: Mutex<bool>,
-    favorites_cache: SimpleCache<Favorites>,
+    library_cache: SimpleCache<Library>,
     featured_albums_cache: SimpleCache<Vec<(String, Vec<AlbumSimple>)>>,
     featured_playlists_cache: SimpleCache<Vec<(String, Vec<Playlist>)>>,
     album_cache: Cache<String, Album>,
@@ -67,7 +67,7 @@ impl Client {
             password,
             max_audio_quality,
             client_initiated: Mutex::new(false),
-            favorites_cache: SimpleCache::new(Duration::days(1)),
+            library_cache: SimpleCache::new(Duration::days(1)),
             featured_albums_cache: SimpleCache::new(Duration::days(1)),
             featured_playlists_cache: SimpleCache::new(Duration::days(1)),
             album_cache,
@@ -238,70 +238,70 @@ impl Client {
     pub async fn add_favorite_track(&self, id: u32) -> Result<()> {
         let client = self.get_client().await?;
         client.add_favorite_track(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
     pub async fn remove_favorite_track(&self, id: u32) -> Result<()> {
         let client = self.get_client().await?;
         client.remove_favorite_track(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
     pub async fn add_favorite_album(&self, id: &str) -> Result<()> {
         let client = self.get_client().await?;
         client.add_favorite_album(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
     pub async fn remove_favorite_album(&self, id: &str) -> Result<()> {
         let client = self.get_client().await?;
         client.remove_favorite_album(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
     pub async fn add_favorite_artist(&self, id: u32) -> Result<()> {
         let client = self.get_client().await?;
         client.add_favorite_artist(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
     pub async fn remove_favorite_artist(&self, id: u32) -> Result<()> {
         let client = self.get_client().await?;
         client.remove_favorite_artist(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
     pub async fn add_favorite_playlist(&self, id: u32) -> Result<()> {
         let client = self.get_client().await?;
         client.add_favorite_playlist(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
     pub async fn remove_favorite_playlist(&self, id: u32) -> Result<()> {
         let client = self.get_client().await?;
         client.remove_favorite_playlist(id).await?;
-        self.favorites_cache.clear().await;
+        self.library_cache.clear().await;
         Ok(())
     }
 
-    pub async fn favorites(&self) -> Result<Favorites> {
-        if let Some(cache) = self.favorites_cache.get().await {
+    pub async fn library(&self) -> Result<Library> {
+        if let Some(cache) = self.library_cache.get().await {
             return Ok(cache);
         }
 
         let client = self.get_client().await?;
 
-        let favorites = client.favorites(1000).await?;
+        let library = client.library(1000).await?;
 
-        self.favorites_cache.set(favorites.clone()).await;
-        Ok(favorites)
+        self.library_cache.set(library.clone()).await;
+        Ok(library)
     }
 
     pub async fn create_playlist(
@@ -315,12 +315,12 @@ impl Client {
         let playlist = client
             .create_playlist(name, is_public, description, is_collaborative)
             .await?;
-        let cache = self.favorites_cache.get().await;
+        let cache = self.library_cache.get().await;
 
         if let Some(mut cache) = cache {
             cache.playlists.push(playlist.clone());
             cache.playlists.sort_by(|a, b| a.title.cmp(&b.title));
-            self.favorites_cache.set(cache).await;
+            self.library_cache.set(cache).await;
         }
 
         Ok(playlist)
@@ -329,14 +329,14 @@ impl Client {
     pub async fn delete_playlist(&self, playlist_id: u32) -> Result<()> {
         let client = self.get_client().await?;
         client.delete_playlist(playlist_id).await?;
-        let cache = self.favorites_cache.get().await;
+        let cache = self.library_cache.get().await;
 
         if let Some(mut cache) = cache {
             cache
                 .playlists
                 .retain(|playlist| playlist.id != playlist_id);
 
-            self.favorites_cache.set(cache).await;
+            self.library_cache.set(cache).await;
         }
 
         Ok(())
