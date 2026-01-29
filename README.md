@@ -1,33 +1,31 @@
-# qobuz-player
-
-## High resolution audio player backed by Qobuz
+# qobuz-mini
 
 Powered by [Qobuz](https://www.qobuz.com). Requires a paid subscription. This does not allow you to listen for free.
 
-The player includes a terminal ui, a web-ui and a RFID player. 
-The web interface is ideal for a setup with a single board computer, e.g. Raspberry Pi, connected to the speaker system and controlled with a smartphone or tablet.
+This project is a fork of [qobuz-player](https://github.com/SofusA/qobuz-player) with added features for musicians and to integrate with my stream deck plugin
 
-### Terminal UI
+## Web UI
+![Web UI Screenshot](/assets/qobuz-player-webui.png?raw=true)
+
+## Terminal UI
 ![TUI Screenshot](/assets/qobuz-player.png?raw=true)
 
-#### Keyboard Shortcuts
-Press <kbd>?</kbd> for an overview of all available keyboard shortcuts
+Currently only being developed for windows.
 
-### Web UI
-<img src="/assets/qobuz-player-webui.png?raw=true" width="240">
+## Todo
 
-### RFID player
-![RFID player](/assets/rfid-player.gif?raw=true)
+### Currently Planned Features
+- Username & password authentication on Web UI
+- UI based on Qobuz design
+- Audio drivers list
 
-Read more [in the wiki](https://github.com/SofusA/qobuz-player/wiki/RFID-player)
+### Future Planned Features
+- Stream Deck integration
+- Change playback speed & pitch
+- Create & save timestamps
+- Create & save loop sections
+- Audio equalizer
 
-## Player Features
-
-- High resolution audio: Supports up to 24bit/192Khz (max quality Qobuz offers)
-- MPRIS support (control via [playerctl](https://github.com/altdesktop/playerctl) or other D-Bus client)
-- Gap-less playback
-- Web UI 
-- Terminal UI 
 
 ## Installation
 ### Fonts
@@ -85,4 +83,4 @@ Go to `http://localhost:9888` to view the UI.
 Feature requests, issues and contributions are very welcome.
 
 ## Credits
-Qobuz-player started as a fork of [hifi.rs](https://github.com/iamdb/hifi.rs) but has since diverged. 
+This codebase is a fork of [qobuz-player](https://github.com/SofusA/qobuz-player) made by [SofusA](https://github.com/SofusA) which is based off [hifi.rs](https://github.com/iamdb/hifi.rs) by [David Benjamin](https://github.com/iamdb)
