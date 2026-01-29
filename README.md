@@ -5,10 +5,10 @@ Powered by [Qobuz](https://www.qobuz.com). Requires a paid subscription. This do
 This project is a fork of [qobuz-player](https://github.com/SofusA/qobuz-player) with added features for musicians and to integrate with my stream deck plugin
 
 ## Web UI
-![Web UI Screenshot](/assets/qobuz-player-webui.png?raw=true)
+![Web UI Screenshot](/assets/qobuz-player-webui.png)
 
 ## Terminal UI
-![TUI Screenshot](/assets/qobuz-player.png?raw=true)
+![TUI Screenshot](/assets/qobuz-player.png)
 
 Currently only being developed for windows.
 
