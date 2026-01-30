@@ -5,9 +5,9 @@
   hx-target="this"
 >
   <div class="h-16"></div>
-  <div class="px-safe-offset-2 py-safe fixed right-0 bottom-14 left-0">
+  <div id="other-page-controls-container" class="fixed right-0 left-0">
     <div
-      class="flex items-center justify-between gap-2 rounded-md bg-gray-900/70 p-2 backdrop-blur"
+      class="flex items-center justify-between gap-2 bg-gray-900/70 p-2 backdrop-blur"
     >
       <a
         class="flex w-full items-center gap-2 overflow-hidden"
@@ -26,13 +26,13 @@
         </div>
       </a>
       <div class="flex items-center gap-6">
-        <span class="hidden h-8 w-8 items-center justify-center sm:flex">
+        <span id="player-controls-previous" class="hidden items-center justify-center sm:flex">
           @defer (previous.html) {}
         </span>
-        <span class="flex h-10 w-30 items-center justify-center">
+        <span id="player-controls-play-pause" class="flex items-center justify-center">
           @defer (player-state.html; playing_info=playing_info) {}
         </span>
-        <span class="flex h-8 w-8 items-center justify-center">
+        <span id="player-controls-next" class="flex items-center justify-center">
           @defer (next.html) {}
         </span>
       </div>

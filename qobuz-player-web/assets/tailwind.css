@@ -7,6 +7,10 @@ html {
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+.dark body {
+  background-color: #121212;
+}
+
 .my-indicator {
   opacity: 0;
   transition: opacity 150ms ease-in;
@@ -21,7 +25,7 @@ html {
 }
 
 .button-primary {
-  @apply bg-blue-500 active:bg-blue-700;
+  @apply cursor-pointer;
 }
 
 .button-danger {

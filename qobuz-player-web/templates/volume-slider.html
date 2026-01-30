@@ -1,13 +1,54 @@
-<input
-  id="volume-slider"
-  class="w-full accent-blue-500"
-  autocomplete="off"
-  hx-post="/api/volume"
-  hx-trigger="change"
-  hx-swap="none"
-  value="{{ current_volume }}"
-  type="range"
-  name="value"
-  min="0"
-  max="100"
-/>
+<div class="w-full">
+  <input
+    id="volume-slider"
+    style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;"
+    autocomplete="off"
+    hx-post="/api/volume"
+    hx-trigger="change"
+    hx-swap="none"
+    value="{{ current_volume }}"
+    type="range"
+    name="value"
+    min="0"
+    max="100"
+    tabindex="-1"
+    aria-hidden="true"
+  />
+
+  <div class="relative cursor-pointer flex items-center @if (hires_available) { hires-audio }" id="volume-bar-container" style="height: 24px;">
+    <div class="relative w-full rounded-full" id="volume-bar-background" style="height: 8px;">
+      <div class="absolute left-0 top-0 transition-all" id="volume-bar-fill" style="height: 8px; width: 0%; border-radius: 9999px 0 0 9999px;"></div>
+      <div class="absolute rounded transition-all pointer-events-none" id="volume-bar-handle" style="left: 0%; width: 4px; height: 16px; background-color: #ffffff; top: 50%; transform: translateY(-50%);"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  function updateVolume() {
+    const slider = document.getElementById("volume-slider");
+    const fill = document.getElementById("volume-bar-fill");
+    const handle = document.getElementById("volume-bar-handle");
+    
+    if (slider && fill && handle) {
+      const value = parseFloat(slider.value) || 0;
+      const max = parseFloat(slider.max) || 1;
+      const percentage = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+      
+      fill.style.width = percentage + "%";
+      handle.style.left = percentage + "%";
+      handle.style.transform = "translateY(-50%)";
+    }
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateVolume);
+  } else {
+    updateVolume();
+  }
+  
+  setTimeout(updateVolume, 0);
+  setTimeout(updateVolume, 100);
+})();
+</script>
+

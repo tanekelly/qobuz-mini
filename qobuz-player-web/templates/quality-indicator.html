@@ -1,0 +1,9 @@
+<div id="quality-indicator" class="flex items-center gap-2 shrink-0 text-white">
+  <img src="{{ playing_info.audio_quality_display.icon }}" alt="" class="size-5 object-contain" />
+  <div class="flex flex-col leading-tight">
+    <span>{{ playing_info.audio_quality_display.line1 }}</span>
+    @if (playing_info.audio_quality_display.line2) {
+      <span>{{ playing_info.audio_quality_display.line2 }}</span>
+    }
+  </div>
+</div>

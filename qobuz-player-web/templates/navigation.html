@@ -2,13 +2,15 @@
   <div class="h-12"></div>
 </div>
 <nav
+  id="bottom-nav"
   class="pb-safe px-safe fixed bottom-0 flex w-full justify-evenly bg-black/80 backdrop-blur *:flex *:h-13 *:w-20 *:flex-col *:items-center *:overflow-visible *:px-4 *:py-1 *:text-[10px] *:font-medium *:text-nowrap *:transition-colors"
 >
   <a
+    id="nav-now-playing"
     href="/"
     preload="mouseover"
     preload-images="true"
-    class="@if (active_page == 'NowPlaying') {text-blue-500} @else {text-gray-500}"
+    class="@if (active_page == 'NowPlaying') { nav-selected }"
   >
     <span class="size-6">
       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 887 1024" width="100%" height="100%">
@@ -22,8 +24,9 @@ v-444v-49v-36v-25q0 -60 -45.5 -102.5t-108.5 -42.5h-27q-63 0 -108.5 42.5t-45.5 10
   </a>
 
   <a
+    id="nav-queue"
     href="/queue"
-    class="@if (active_page == 'Queue') {text-blue-500} @else {text-gray-500}"
+    class="@if (active_page == 'Queue') { nav-selected }"
   >
     <span class="size-6">
       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1044 1024" width="100%" height="100%">
@@ -35,10 +38,11 @@ v-444v-49v-36v-25q0 -60 -45.5 -102.5t-108.5 -42.5h-27q-63 0 -108.5 42.5t-45.5 10
     Queue
   </a>
   <a
+    id="nav-discover"
     href="/discover"
     preload="mouseover"
     preload-images="true"
-    class="@if (active_page == 'Discover') {text-blue-500} @else {text-gray-500}"
+    class="@if (active_page == 'Discover') { nav-selected }"
   >
     <span class="size-6">
       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1042 1024" width="100%" height="100%">
@@ -52,9 +56,10 @@ l130 296q3 8 0 16t-11 12q-4 2 -8.5 2t-8.5 -2v0zM455 404q-19 18 -19 44t19 44q18 1
     Discover
   </a>
   <a
+    id="nav-library"
     href="/library/albums"
     preload="mouseover"
-    class="@if (active_page == 'Library') {text-blue-500} @else {text-gray-500}"
+    class="@if (active_page == 'Library') { nav-selected }"
   >
     <span class="size-6">
       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1034 1024" width="100%" height="100%">
@@ -70,7 +75,7 @@ q-16 0 -27 -11t-11 -27q0 -15 11.5 -26t26.5 -11q16 0 27 11t11 26q0 16 -11 27t-27 
   </a>
 
   @if (active_page == "Search") {
-    <button class="text-blue-500" onclick="focusSearchInput()">
+    <button id="nav-search" class="nav-selected" onclick="focusSearchInput()">
       <span class="size-6">
         <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="100%" height="100%">
           <path fill-rule="evenodd" fill="currentColor" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
@@ -79,7 +84,7 @@ q-16 0 -27 -11t-11 -27q0 -15 11.5 -26t26.5 -11q16 0 27 11t11 26q0 16 -11 27t-27 
       Search
     </button>
   } @else {
-    <a href="/search/albums" class="text-gray-500">
+    <a id="nav-search" href="/search/albums">
       <span class="size-6">
         <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="100%" height="100%">
           <path fill-rule="evenodd" fill="currentColor" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
@@ -89,8 +94,9 @@ q-16 0 -27 -11t-11 -27q0 -15 11.5 -26t26.5 -11q16 0 27 11t11 26q0 16 -11 27t-27 
     </a>
   }
   <a
+    id="nav-settings"
     href="/settings"
-    class="@if(active_page == "Settings"){text-blue-500}@else {text-gray-500}"
+    class="@if (active_page == 'Settings') { nav-selected }"
   >
     <span class="size-6">
       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-10 0 1034 1024" width="100%" height="100%">

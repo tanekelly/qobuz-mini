@@ -52,6 +52,8 @@ function initSse() {
         htmx.trigger(element, "tracklist");
       }
     }
+
+    updateBlurredBackground();
   });
 
   evtSource.addEventListener("volume", (event) => {
@@ -60,6 +62,19 @@ function initSse() {
       return;
     }
     slider.value = event.data;
+    
+    const fill = document.getElementById("volume-bar-fill");
+    const handle = document.getElementById("volume-bar-handle");
+    
+    if (fill && handle) {
+      const value = parseFloat(event.data) || 0;
+      const max = parseFloat(slider.max) || 1;
+      const percentage = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+      
+      fill.style.width = percentage + "%";
+      handle.style.left = percentage + "%";
+      handle.style.transform = "translateY(-50%)";
+    }
   });
 
   evtSource.addEventListener("error", (event) => {
@@ -85,6 +100,7 @@ function initSse() {
     }
     slider.value = event.data;
     updatePositionText(event.data);
+    updateProgressBarVisual();
   });
 }
 
@@ -93,7 +109,6 @@ function updatePositionText(milliseconds) {
   if (positionElement === null) {
     return;
   }
-
 
   const ms = typeof milliseconds === "string" ? parseInt(milliseconds, 10) : milliseconds;
   const seconds = ms / 1000;
@@ -107,18 +122,259 @@ function updatePositionText(milliseconds) {
   positionElement.innerText = `${minutesString}:${secondsString}`;
 }
 
+function updateProgressBarVisual() {
+  const slider = document.getElementById("progress-slider");
+  const fill = document.getElementById("progress-bar-fill");
+  const handle = document.getElementById("progress-bar-handle");
+  
+  if (!slider || !fill || !handle) {
+    return;
+  }
+
+  const value = parseFloat(slider.value) || 0;
+  const max = parseFloat(slider.max) || 1;
+  const percentage = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  
+  fill.style.width = `${percentage}%`;
+  handle.style.left = `${percentage}%`;
+  handle.style.transform = `translateY(-50%)`;
+}
+
+
+function setupProgressBar() {
+  const progressContainer = document.getElementById("progress-bar-container");
+  const progressBackground = document.getElementById("progress-bar-background");
+  const slider = document.getElementById("progress-slider");
+  const fill = document.getElementById("progress-bar-fill");
+  const handle = document.getElementById("progress-bar-handle");
+  
+  if (!progressContainer || !progressBackground || !slider || !fill || !handle) {
+    return;
+  }
+
+  let isDragging = false;
+  let rafId = null;
+
+  function updateVisualDirectly(percentage) {
+    fill.style.width = percentage + "%";
+    handle.style.left = percentage + "%";
+    handle.style.transform = "translateY(-50%)";
+  }
+
+  function setProgressFromEvent(event) {
+    const rect = progressBackground.getBoundingClientRect();
+    const clientX = event.clientX !== undefined ? event.clientX : event.touches?.[0]?.clientX;
+    
+    if (clientX === undefined) {
+      return;
+    }
+    
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    const max = parseFloat(slider.max);
+    const newValue = Math.round((percentage / 100) * max);
+    
+    slider.value = newValue;
+    updatePositionText(newValue);
+    
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+    }
+    
+    rafId = requestAnimationFrame(() => {
+      updateVisualDirectly(percentage);
+      rafId = null;
+    });
+  }
+
+  progressContainer.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    fill.style.transition = "none";
+    handle.style.transition = "none";
+    setProgressFromEvent(e);
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      setProgressFromEvent(e);
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      fill.style.transition = "";
+      handle.style.transition = "";
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      slider.dispatchEvent(new Event("change"));
+    }
+  });
+
+  progressContainer.addEventListener("touchstart", (e) => {
+    isDragging = true;
+    fill.style.transition = "none";
+    handle.style.transition = "none";
+    setProgressFromEvent(e);
+    e.preventDefault();
+  });
+
+  document.addEventListener("touchmove", (e) => {
+    if (isDragging) {
+      setProgressFromEvent(e);
+      e.preventDefault();
+    }
+  });
+
+  document.addEventListener("touchend", () => {
+    if (isDragging) {
+      isDragging = false;
+      fill.style.transition = "";
+      handle.style.transition = "";
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      slider.dispatchEvent(new Event("change"));
+    }
+  });
+
+  if (slider) {
+    slider.addEventListener("input", function () {
+      updatePositionText(this.value);
+      updateProgressBarVisual();
+    });
+  }
+
+  updateProgressBarVisual();
+}
+
+function setupVolumeBar() {
+  const volumeContainer = document.getElementById("volume-bar-container");
+  const volumeBackground = document.getElementById("volume-bar-background");
+  const slider = document.getElementById("volume-slider");
+  const fill = document.getElementById("volume-bar-fill");
+  const handle = document.getElementById("volume-bar-handle");
+  
+  if (!volumeContainer || !volumeBackground || !slider || !fill || !handle) {
+    return;
+  }
+
+  let isDragging = false;
+  let rafId = null;
+
+  function updateVisualDirectly(percentage) {
+    fill.style.width = percentage + "%";
+    handle.style.left = percentage + "%";
+    handle.style.transform = "translateY(-50%)";
+  }
+
+  function setVolumeFromEvent(event) {
+    const rect = volumeBackground.getBoundingClientRect();
+    const clientX = event.clientX !== undefined ? event.clientX : event.touches?.[0]?.clientX;
+    
+    if (clientX === undefined) {
+      return;
+    }
+    
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    const max = parseFloat(slider.max);
+    const newValue = Math.round((percentage / 100) * max);
+    
+    slider.value = newValue;
+    
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+    }
+    
+    rafId = requestAnimationFrame(() => {
+      updateVisualDirectly(percentage);
+      rafId = null;
+    });
+  }
+
+  volumeContainer.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    fill.style.transition = "none";
+    handle.style.transition = "none";
+    setVolumeFromEvent(e);
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      setVolumeFromEvent(e);
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      fill.style.transition = "";
+      handle.style.transition = "";
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      slider.dispatchEvent(new Event("change"));
+    }
+  });
+
+  volumeContainer.addEventListener("touchstart", (e) => {
+    isDragging = true;
+    fill.style.transition = "none";
+    handle.style.transition = "none";
+    setVolumeFromEvent(e);
+    e.preventDefault();
+  });
+
+  document.addEventListener("touchmove", (e) => {
+    if (isDragging) {
+      setVolumeFromEvent(e);
+      e.preventDefault();
+    }
+  });
+
+  document.addEventListener("touchend", () => {
+    if (isDragging) {
+      isDragging = false;
+      fill.style.transition = "";
+      handle.style.transition = "";
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      slider.dispatchEvent(new Event("change"));
+    }
+  });
+
+  if (slider) {
+    slider.addEventListener("input", function () {
+      const value = parseFloat(this.value) || 0;
+      const max = parseFloat(this.max) || 1;
+      const percentage = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+      updateVisualDirectly(percentage);
+    });
+  }
+
+  const value = parseFloat(slider.value) || 0;
+  const max = parseFloat(slider.max) || 1;
+  const percentage = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  updateVisualDirectly(percentage);
+}
 
 document.addEventListener("DOMContentLoaded", function () {
   if (!evtSource || evtSource.readyState === EventSource.CLOSED) {
     initSse();
   }
 
-  const progressSlider = document.getElementById("progress-slider");
-  if (progressSlider) {
-    progressSlider.addEventListener("input", function () {
-      updatePositionText(this.value);
-    });
-  }
+  setupProgressBar();
+  setupVolumeBar();
+  updateBlurredBackground();
 });
 
 function refreshSse() {
@@ -180,6 +436,8 @@ htmx.onLoad(function (content) {
       handle: ".handle",
     });
   }
+  setupProgressBar();
+  setupVolumeBar();
 });
 
 function getRequestKey(element, path) {
@@ -262,6 +520,9 @@ htmx.on("afterRequest", function (event) {
 
 htmx.on("afterSwap", function (event) {
   clearLoadingIndicator();
+  updateBlurredBackground();
+  setupProgressBar();
+  setupVolumeBar();
 });
 
 htmx.on("responseError", function (event) {
@@ -315,3 +576,34 @@ document.addEventListener("click", function (event) {
 window.addEventListener("beforeunload", function () {
   cancelAllRequests("page unload");
 });
+
+function updateBlurredBackground() {
+  const backgroundImage = document.getElementById("blurred-background-image");
+  
+  if (!backgroundImage) {
+    return;
+  }
+
+  const coverImage = document.querySelector('img[data-cover-image]');
+  
+  if (coverImage) {
+    const coverUrl = coverImage.getAttribute("data-cover-image") || coverImage.src;
+    
+    if (coverImage.complete) {
+      backgroundImage.style.backgroundImage = `url(${coverUrl})`;
+      backgroundImage.style.opacity = "1";
+    } else {
+      coverImage.addEventListener("load", function() {
+        backgroundImage.style.backgroundImage = `url(${coverUrl})`;
+        backgroundImage.style.opacity = "1";
+      }, { once: true });
+      
+      if (coverImage.src) {
+        backgroundImage.style.backgroundImage = `url(${coverUrl})`;
+        backgroundImage.style.opacity = "1";
+      }
+    }
+  } else {
+    backgroundImage.style.opacity = "0";
+  }
+}

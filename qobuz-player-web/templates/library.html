@@ -1,6 +1,6 @@
 @defer (base.html; active_page="Library"; playing_info=playing_info) {
   <div
-    class="flex flex-col px-4"
+    class="flex flex-col"
     data-sse="tracklist"
     hx-trigger="tracklist"
     hx-get="/library/{{ tab }}"
@@ -8,15 +8,15 @@
     hx-swap="outerHTML"
   >
     <div
-      class="pt-safe-or-4 sticky top-0 flex max-h-full grow flex-col gap-4 bg-black/80 pb-2 backdrop-blur"
+      id="title" class="sticky top-0 flex max-h-full grow flex-col bg-black/80 backdrop-blur large-title"
     >
       <h1 class="text-2xl">Library</h1>
       <div
-        class="group flex justify-between *:rounded-full *:px-2 *:py-1 *:transition-colors"
+        id="fitler-tags" class="group flex justify-between *:rounded-full *:px-2 *:py-1 *:transition-colors"
       >
         <a
           href="albums"
-          class="@if (tab=='albums') {bg-blue-800}"
+          class="@if (tab=='albums') {filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >
@@ -24,7 +24,7 @@
         </a>
         <a
           href="artists"
-          class="@if (tab=='artists') {bg-blue-800}"
+          class="@if (tab=='artists') {filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >
@@ -32,7 +32,7 @@
         </a>
         <a
           href="playlists"
-          class="@if (tab=='playlists') {bg-blue-800}"
+          class="@if (tab=='playlists') {filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >
@@ -40,7 +40,7 @@
         </a>
         <a
           href="tracks"
-          class="@if (tab=='tracks') {bg-blue-800}"
+          class="@if (tab=='tracks') {filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >

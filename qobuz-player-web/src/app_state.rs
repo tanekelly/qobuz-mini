@@ -5,6 +5,7 @@ use qobuz_player_controls::{
     controls::Controls,
     database::Database,
     notification::{Notification, NotificationBroadcast},
+    AudioQuality,
 };
 use qobuz_player_models::Library;
 use qobuz_player_rfid::RfidState;
@@ -75,16 +76,28 @@ impl AppState {
         let current_track = tracklist.current_track();
         let status = *self.status_receiver.borrow();
 
-        let (title, artist_link, artist_name) = current_track
+        let (title, artist_link, artist_name, hires_available) = current_track
             .map(|track| (
                 track.title.clone(),
                 track.artist_id.map(|id| format!("/artist/{id}")),
                 track.artist_name.clone(),
+                track.hires_available,
             ))
-            .unwrap_or_else(|| (String::default(), None, None));
+            .unwrap_or_else(|| (String::default(), None, None, false));
 
         let entity = tracklist.entity_playing();
         let now_playing_id = tracklist.currently_playing();
+
+        let max_quality = self.client.max_audio_quality();
+        let effective_quality = match (current_track, hires_available) {
+            (None, _) => max_quality.clone(),
+            (Some(_), true) => max_quality.clone(),
+            (Some(_), false) => match max_quality {
+                AudioQuality::HIFI96 | AudioQuality::HIFI192 => AudioQuality::CD,
+                _ => max_quality.clone(),
+            },
+        };
+        let audio_quality_display = audio_quality_display(effective_quality);
 
         let playing_info = PlayingInfo {
             title,
@@ -95,6 +108,8 @@ impl AppState {
             entity_link: entity.link,
             status,
             cover_image: entity.cover_link,
+            hires_available,
+            audio_quality_display,
         };
 
         let playing_info_json = json!({"playing_info": playing_info});
@@ -179,6 +194,40 @@ struct PlayingInfo {
     entity_link: Option<String>,
     status: Status,
     cover_image: Option<String>,
+    hires_available: bool,
+    audio_quality_display: AudioQualityDisplay,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct AudioQualityDisplay {
+    icon: String,
+    line1: String,
+    line2: String,
+}
+
+fn audio_quality_display(quality: AudioQuality) -> AudioQualityDisplay {
+    match quality {
+        AudioQuality::Mp3 => AudioQualityDisplay {
+            icon: "/assets/svg/mp3.svg".into(),
+            line1: "MP3 320 kbps".into(),
+            line2: String::new(),
+        },
+        AudioQuality::CD => AudioQualityDisplay {
+            icon: "/assets/svg/cd.svg".into(),
+            line1: "CD 16 bit".into(),
+            line2: "44.1kHz".into(),
+        },
+        AudioQuality::HIFI96 => AudioQualityDisplay {
+            icon: "/assets/logo-hires.png".into(),
+            line1: "Hi-Res 24-Bit".into(),
+            line2: "96kHz".into(),
+        },
+        AudioQuality::HIFI192 => AudioQualityDisplay {
+            icon: "/assets/logo-hires.png".into(),
+            line1: "Hi-Res 24-Bit".into(),
+            line2: "192kHz".into(),
+        },
+    }
 }
 
 fn merge_serialized<T: serde::Serialize, Y: serde::Serialize>(

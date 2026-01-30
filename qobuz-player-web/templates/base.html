@@ -5,10 +5,22 @@
   <html lang="en" class="dark">
     @defer (head.html) {}
     <body
-      class="touch-pan-y bg-black text-gray-50"
+      class="touch-pan-y text-gray-50 bg-[#121212] @if (playing_info.hires_available) { current-track-hires }"
       hx-ext="preload, remove-me, morph"
       hx-indicator="#loading-spinner"
     >
+      <div
+        id="blurred-background"
+        class="fixed inset-0 pointer-events-none bg-[#121212] transition-opacity duration-500"
+        style="z-index: -1;"
+      >
+        <div
+          id="blurred-background-image"
+          class="absolute inset-0 bg-no-repeat opacity-0 transition-opacity duration-500 pointer-events-none"
+          style="background-size: 100% 100%; filter: blur(40px) brightness(0.3);"
+        ></div>
+      </div>
+
       <div
         id="loading-spinner"
         hx-preserve

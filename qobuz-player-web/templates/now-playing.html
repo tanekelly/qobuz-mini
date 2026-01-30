@@ -5,16 +5,20 @@
   playing_info=playing_info
 ) {
   <div
-    class="mx-auto flex touch-none flex-col gap-4 p-4"
-    style="
-      max-width: calc(600px + 2rem);
-      height: calc(100% - 4rem - env(safe-area-inset-bottom));
-    "
-    hx-get="/now-playing"
-    hx-trigger="tracklist"
-    data-sse="tracklist"
-    hx-swap="outerHTML"
+    class="flex w-full items-center justify-center"
+    style="min-height: calc(100vh - 4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));"
   >
+    <div
+      class="mx-auto flex w-full touch-none flex-col gap-4 p-4"
+      style="
+        max-width: calc(550px + 2rem);
+        max-height: calc(100vh - 4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      "
+      hx-get="/now-playing"
+      hx-trigger="tracklist"
+      data-sse="tracklist"
+      hx-swap="outerHTML"
+    >
     <div
       class="flex aspect-square size-full max-h-fit justify-center overflow-hidden"
     >
@@ -23,6 +27,7 @@
           src="{{ playing_info.cover_image }}"
           alt="{{ title }}"
           class="rounded-lg"
+          data-cover-image="{{ playing_info.cover_image }}"
         />
       } @else {
         <div class="aspect-square h-full rounded-lg bg-gray-900"></div>
@@ -60,23 +65,32 @@
           position_mseconds=position_mseconds;
           duration_mseconds=duration_mseconds;
           position_string=position_string;
-          duration_string=duration_string
+          duration_string=duration_string;
+          hires_available=hires_available
         ) {}
       </div>
-      <div class="flex flex-col gap-4">
-        <div class="flex h-10 flex-row items-center justify-center gap-6">
-          <div class="flex h-8 w-8 items-center justify-center">
+      <div class="flex flex-col gap-5">
+        <div id="player-controls" class="flex h-10 flex-row items-center justify-center gap-6">
+          <div id="player-controls-previous" class="flex items-center justify-center">
             @defer (previous.html) {}
           </div>
-          <div class="flex h-10 w-30 items-center justify-center">
+          <div id="player-controls-play-pause" class="flex items-center justify-center">
             @defer (player-state.html; playing_info=playing_info) {}
           </div>
-          <div class="flex h-8 w-8 items-center justify-center">
+          <div id="player-controls-next" class="flex tems-center justify-center">
             @defer (next.html) {}
           </div>
         </div>
-        @defer (volume-slider.html; current_volume=current_volume) {}
+        <div id="player-controls-secondary-container" class="flex flex-row gap-4 items-center justify-between w-full">
+          <div id="player-controls-quality-indicator" class="flex-1 w-full">@defer (quality-indicator.html; playing_info=playing_info) {}</div>
+          <div class="flex-1 w-full"></div>
+          <div id="player-controls-volume" class="flex-1 flex items-center justify-end">
+            @defer (volume-slider.html; current_volume=current_volume; hires_available=hires_available) {}
+          </div>
+      
+        </div>
       </div>
     </div>
+  </div>
   </div>
 }

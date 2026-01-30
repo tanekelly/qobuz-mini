@@ -1,7 +1,7 @@
 <div class="flex flex-col">
   <input
     id="progress-slider"
-    class="w-full accent-gray-500"
+    style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;"
     autocomplete="off"
     hx-post="/api/position"
     hx-trigger="change"
@@ -11,10 +11,47 @@
     name="value"
     min="0"
     max="{{ duration_mseconds }}"
+    tabindex="-1"
+    aria-hidden="true"
   />
 
-  <div class="flex justify-between text-sm text-gray-500">
-    <span id="position">{{ position_string }}</span>
-    <span>{{ duration_string }}</span>
+  <div class="relative w-full cursor-pointer flex items-center @if (hires_available) { hires-audio }" id="progress-bar-container" style="height: 24px;">
+    <div class="relative w-full rounded-full" id="progress-bar-background" style="height: 8px;">
+      <div class="absolute left-0 top-0 transition-all" id="progress-bar-fill" style="height: 8px; width: 0%; border-radius: 9999px 0 0 9999px;"></div>
+      <div class="absolute rounded transition-all pointer-events-none" id="progress-bar-handle" style="left: 0%; width: 4px; height: 16px; background-color: #ffffff; top: 50%; transform: translateY(-50%);"></div>
+    </div>
+  </div>
+
+  <div class="flex justify-between mt-6">
+    <span id="position" class="text-gray-400 text-sm">{{ position_string }}</span>
+    <span class="text-gray-400 text-sm">{{ duration_string }}</span>
   </div>
 </div>
+
+<script>
+(function() {
+  function updateProgress() {
+    const slider = document.getElementById("progress-slider");
+    const fill = document.getElementById("progress-bar-fill");
+    const handle = document.getElementById("progress-bar-handle");
+    
+    if (slider && fill && handle) {
+      const value = parseFloat(slider.value) || 0;
+      const max = parseFloat(slider.max) || 1;
+      const percentage = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+      
+      fill.style.width = percentage + "%";
+      handle.style.left = percentage + "%";
+      handle.style.transform = "translateY(-50%)";
+    }
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateProgress);
+  } else {
+    updateProgress();
+  }
+  
+  setTimeout(updateProgress, 0);
+})();
+</script>

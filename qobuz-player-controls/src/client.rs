@@ -32,6 +32,10 @@ pub struct Client {
 }
 
 impl Client {
+    pub fn max_audio_quality(&self) -> AudioQuality {
+        self.max_audio_quality.clone()
+    }
+
     pub fn new(username: String, password: String, max_audio_quality: AudioQuality) -> Self {
         let album_cache = moka::future::CacheBuilder::new(1000)
             .time_to_live(std::time::Duration::from_secs(60 * 60 * 24 * 7))

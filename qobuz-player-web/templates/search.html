@@ -1,13 +1,18 @@
 @defer (base.html; active_page="Search"; playing_info=playing_info) {
   <div class="flex flex-col">
     <div
-      class="pt-safe-or-4 sticky top-0 flex max-h-full grow flex-col gap-4 bg-black/80 pb-2 backdrop-blur"
+      id="title" class="sticky top-0 flex max-h-full grow flex-col bg-black/80 backdrop-blur large-title"
     >
-      <div class="flex flex-row items-center gap-4">
+      <div class="search-bar-wrapper">
+        <span class="search-bar-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%">
+            <path fill-rule="evenodd" fill="currentColor" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
+          </svg>
+        </span>
         <input
           id="query"
           name="query"
-          class="w-full rounded bg-white p-2 text-black"
+          class="search-bar-input"
           autocapitalize="off"
           autocomplete="off"
           autocorrect="off"
@@ -21,23 +26,18 @@
           hx-target="#search-content"
           hx-swap="outerHTML"
         />
-        <span class="size-8">
-          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="100%" height="100%">
-            <path fill-rule="evenodd" fill="currentColor" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
-          </svg>
-        </span>
         <script>
           loadSearchInput();
         </script>
       </div>
 
       <div
-        class="flex justify-between *:rounded-full *:px-2 *:py-1 *:transition-colors"
+        id="fitler-tags" class="flex justify-between *:rounded-full *:px-2 *:py-1 *:transition-colors"
       >
         <a
           id="albums-tab"
           href="albums?query={{ search_results.query }}"
-          class="@if(tab == 'albums'){bg-blue-800}"
+          class="@if(tab == 'albums'){filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >
@@ -46,7 +46,7 @@
         <a
           id="artists-tab"
           href="artists?query={{ search_results.query }}"
-          class="@if(tab == 'artists'){bg-blue-800}"
+          class="@if(tab == 'artists'){filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >
@@ -55,7 +55,7 @@
         <a
           id="playlists-tab"
           href="playlists?query={{ search_results.query }}"
-          class="@if(tab == 'playlists'){bg-blue-800}"
+          class="@if(tab == 'playlists'){filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >
@@ -64,7 +64,7 @@
         <a
           id="tracks-tab"
           href="tracks?query={{ search_results.query }}"
-          class="@if(tab == 'tracks'){bg-blue-800}"
+          class="@if(tab == 'tracks'){filter-tag-selected}"
           preload="mouseover"
           preload-images="true"
         >
