@@ -128,11 +128,6 @@ impl Player {
         
         self.sink.set_device(device_name.clone());
         
-        let device_display = device_name.as_ref().map(|s| s.as_str()).unwrap_or("Default");
-        self.broadcast.send(Notification::Info(
-            format!("Audio device changed to '{}'.", device_display)
-        ));
-        
         let current_status = *self.target_status.borrow();
         let was_playing = current_status == Status::Playing || current_status == Status::Buffering;
         
@@ -687,21 +682,22 @@ impl Player {
             }
             ControlCommand::SetAudioDevice { device_name } => {
                 tracing::info!("Player: Received SetAudioDevice command: {:?}", device_name);
+                let device_display = device_name.as_deref().unwrap_or("Default").to_string();
+                
                 if let Err(e) = self.database.set_audio_device(device_name.clone()).await {
                     tracing::error!("Failed to save audio device to database: {}", e);
                     self.broadcast.send(Notification::Error(
                         format!("Failed to save audio device: {}", e)
                     ));
+                } else if let Err(e) = self.set_audio_device(device_name).await {
+                    tracing::error!("Failed to set audio device: {}", e);
+                    self.broadcast.send(Notification::Error(
+                        format!("Failed to set audio device: {}", e)
+                    ));
                 } else {
-                    if let Err(e) = self.set_audio_device(device_name).await {
-                        tracing::error!("Failed to set audio device: {}", e);
-                        self.broadcast.send(Notification::Error(
-                            format!("Failed to set audio device: {}", e)
-                        ));
-                    } else {
-                        let notification = Notification::Success("Audio device updated".to_string());
-                        self.broadcast.send(notification);
-                    }
+                    self.broadcast.send(Notification::Success(
+                        format!("Output changed to '{}'.", device_display)
+                    ));
                 }
             }
             ControlCommand::AddTrackToQueue { id } => self.add_track_to_queue(id).await?,

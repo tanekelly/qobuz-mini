@@ -72,23 +72,15 @@ impl Sink {
     pub fn play(&self) -> Result<()> {
         if let Some(sink) = &self.sink {
             sink.play();
-            Ok(())
-        } else {
-            Err(Error::StreamError {
-                message: "Sink not initialized".to_string(),
-            })
         }
+        Ok(())
     }
 
     pub fn pause(&self) -> Result<()> {
         if let Some(sink) = &self.sink {
             sink.pause();
-            Ok(())
-        } else {
-            Err(Error::StreamError {
-                message: "Sink not initialized".to_string(),
-            })
         }
+        Ok(())
     }
 
     pub fn seek(&self, duration: Duration) -> Result<()> {

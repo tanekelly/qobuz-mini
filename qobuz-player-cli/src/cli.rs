@@ -443,65 +443,64 @@ async fn monitor_audio_devices(
                     .and_then(|c| c.audio_device_name);
                 
                 let current_default = get_default_device_name().unwrap_or(None);
+                
+                let mut device_changes = Vec::new();
+                let mut needs_device_update = false;
                     
                 if current_count != last_device_count {
                     tracing::info!("Audio device count changed: {} -> {}", last_device_count, current_count);
                     last_device_count = current_count;
-                    
-                    broadcast.send(Notification::Info(
-                        "Audio device list updated.".to_string()
-                    ));
+                    device_changes.push("Audio device list updated".to_string());
                     
                     if let Some(selected) = &current_selected {
-                        let device_exists = devices.iter().any(|d| &d.name == selected);
-                        if !device_exists {
+                        if !devices.iter().any(|d| &d.name == selected) {
                             tracing::warn!("Selected audio device '{}' no longer available", selected);
                             broadcast.send(Notification::Warning(
                                 format!("Audio device '{}' was removed. Using default device.", selected)
                             ));
-                            if let Err(e) = database.set_audio_device(None).await {
-                                tracing::error!("Failed to reset audio device: {}", e);
-                            } else {
+                            if database.set_audio_device(None).await.is_ok() {
                                 controls.set_audio_device(None);
                             }
                         }
                     }
                 }
                 
-                if current_selected.is_none() {
-                    if current_default != last_default_device {
-                        if let (Some(old_default), Some(new_default)) = (&last_default_device, &current_default) {
-                            if old_default != new_default {
-                                tracing::info!("System default device changed: '{}' -> '{}'", old_default, new_default);
-                                broadcast.send(Notification::Info(
-                                    format!("Default audio device changed to '{}'.", new_default)
-                                ));
-                                controls.set_audio_device(None);
-                            }
-                        } else if current_default.is_some() && last_default_device.is_none() {
-                            if let Some(new_default) = &current_default {
-                                tracing::info!("Default audio device appeared: '{}'", new_default);
-                                broadcast.send(Notification::Info(
-                                    format!("Default audio device is now '{}'.", new_default)
-                                ));
-                                controls.set_audio_device(None);
-                            }
-                        } else if last_default_device.is_some() && current_default.is_none() {
+                if current_selected.is_none() && current_default != last_default_device {
+                    match (&last_default_device, &current_default) {
+                        (Some(old), Some(new)) if old != new => {
+                            tracing::info!("System default device changed: '{}' -> '{}'", old, new);
+                            device_changes.push(format!("Default audio device changed to '{}'", new));
+                            needs_device_update = true;
+                        }
+                        (None, Some(new)) => {
+                            tracing::info!("Default audio device appeared: '{}'", new);
+                            device_changes.push(format!("Default audio device is now '{}'", new));
+                            needs_device_update = true;
+                        }
+                        (Some(_), None) => {
                             tracing::warn!("Default audio device disappeared");
                             broadcast.send(Notification::Warning(
                                 "Default audio device was removed.".to_string()
                             ));
-                            controls.set_audio_device(None);
+                            needs_device_update = true;
                         }
-                        last_default_device = current_default.clone();
+                        _ => {}
                     }
-                } else {
-                    last_default_device = current_default.clone();
                 }
                 
                 if current_selected.is_none() && current_count != last_device_count {
                     tracing::info!("Device list changed while 'Default' is selected, rechecking default device");
+                    needs_device_update = true;
+                }
+                
+                if needs_device_update {
                     controls.set_audio_device(None);
+                }
+                
+                last_default_device = current_default.clone();
+                
+                if !device_changes.is_empty() {
+                    broadcast.send(Notification::Info(device_changes.join(". ")));
                 }
                 
                 if current_selected != last_selected_device {
