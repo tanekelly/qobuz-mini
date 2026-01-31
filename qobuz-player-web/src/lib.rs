@@ -4,9 +4,11 @@ use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response, Sse, sse::Event},
-    routing::get,
+    routing::{get, post},
+    Form,
 };
 use futures::stream::Stream;
+use qobuz_player_client::client::AudioQuality;
 use qobuz_player_controls::{
     ExitSender, PositionReceiver, Result, Status, StatusReceiver, TracklistReceiver, VolumeReceiver,
     client::Client,
@@ -40,6 +42,175 @@ mod app_state;
 mod assets;
 mod routes;
 mod views;
+
+pub struct AuthState {
+    pub database: Arc<Database>,
+    pub templates: watch::Receiver<Templates>,
+}
+
+impl AuthState {
+    pub fn render<T>(&self, view: &str, context: &T) -> Response
+    where
+        T: serde::Serialize,
+    {
+        let context_value = serde_json::to_value(context).unwrap_or_default();
+        let templates = self.templates.borrow();
+        let render = templates.render(view, &context_value);
+        Html(render).into_response()
+    }
+}
+
+pub const AUTH_SUCCESS_HTML: &str = r#"<!doctype html>
+<html lang="en" class="h-full dark">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Success</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #000;
+        color: #f3f4f6;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      .message {
+        text-align: center;
+        font-size: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="message">
+      Auth complete, you can now close this page
+    </div>
+  </body>
+</html>"#;
+
+pub async fn validate_credentials(
+    username: &str,
+    password: &str,
+    database: &Database,
+) -> Result<()> {
+    let max_audio_quality = database
+        .get_configuration()
+        .await
+        .ok()
+        .and_then(|config| config.max_audio_quality.try_into().ok())
+        .unwrap_or(AudioQuality::HIFI192);
+
+    qobuz_player_client::client::new(username, password, max_audio_quality).await?;
+    Ok(())
+}
+
+pub async fn save_credentials(
+    database: &Database,
+    username: String,
+    password: String,
+) -> Result<()> {
+    database.set_username(username).await?;
+    database.set_password(password).await?;
+    Ok(())
+}
+
+pub async fn init_auth_only(
+    port: u16,
+    database: Arc<Database>,
+    shutdown: tokio::sync::oneshot::Receiver<()>,
+) -> Result<()> {
+    let interface = format!("0.0.0.0:{port}");
+    let listener = tokio::net::TcpListener::bind(&interface)
+        .await
+        .or(Err(Error::PortInUse { port }))?;
+
+    let template_path = {
+        let current_dir = env::current_dir().expect("Failed to get current directory");
+        current_dir.join("qobuz-player-web/templates")
+    };
+
+    let templates = templates(&template_path);
+    let (_templates_tx, templates_rx) = watch::channel(templates);
+
+    let auth_state = Arc::new(AuthState {
+        database,
+        templates: templates_rx,
+    });
+
+    let router = axum::Router::new()
+        .route("/auth", get(auth_index))
+        .route("/auth/login", post(auth_login))
+        .route("/assets/{*file}", get(static_handler))
+        .with_state(auth_state);
+
+    axum::serve(listener, router)
+        .with_graceful_shutdown(async {
+            shutdown.await.ok();
+        })
+        .await
+        .expect("infallible");
+    Ok(())
+}
+
+async fn auth_index(State(state): State<Arc<AuthState>>) -> impl IntoResponse {
+    state.render("qobuz-login-page.html", &json!({}))
+}
+
+#[derive(serde::Deserialize)]
+struct LoginParameters {
+    username: String,
+    password: String,
+}
+
+async fn auth_login(
+    State(state): State<Arc<AuthState>>,
+    Form(parameters): Form<LoginParameters>,
+) -> impl IntoResponse {
+    match validate_credentials(
+        &parameters.username,
+        &parameters.password,
+        &state.database,
+    )
+    .await
+    {
+        Ok(()) => {
+            match save_credentials(
+                &state.database,
+                parameters.username,
+                parameters.password,
+            )
+            .await
+            {
+                Ok(()) => create_auth_success_response(),
+                Err(_) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to save credentials",
+                )
+                    .into_response(),
+            }
+        }
+        Err(_) => {
+            let error_html = state.render("qobuz-login-page.html", &json!({
+                "error": "Invalid credentials."
+            }));
+            (StatusCode::UNAUTHORIZED, error_html).into_response()
+        }
+    }
+}
+
+fn create_auth_success_response() -> Response {
+    (
+        StatusCode::OK,
+        [(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
+        )],
+        AUTH_SUCCESS_HTML,
+    )
+        .into_response()
+}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn init(

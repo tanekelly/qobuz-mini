@@ -131,6 +131,56 @@ impl From<qobuz_player_controls::error::Error> for Error {
     }
 }
 
+async fn handle_missing_credentials(
+    database: &Arc<Database>,
+    port: u16,
+) {
+    use tokio::sync::oneshot;
+
+    const SERVER_START_DELAY_MS: u64 = 500;
+    const PORT_RELEASE_DELAY_MS: u64 = 500;
+    const POLL_INTERVAL_SECS: u64 = 1;
+
+    let database_clone = database.clone();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+
+    let auth_server_handle = tokio::spawn(async move {
+        if let Err(e) = qobuz_player_web::init_auth_only(
+            port,
+            database_clone,
+            shutdown_rx,
+        )
+        .await
+        {
+            error_exit(e.into());
+        }
+    });
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(SERVER_START_DELAY_MS)).await;
+
+    let auth_url = format!("http://localhost:{}/auth", port);
+    if let Err(e) = open::that(&auth_url) {
+        eprintln!("Failed to open browser: {}", e);
+    }
+
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(POLL_INTERVAL_SECS)).await;
+
+        let creds = match database.get_credentials().await {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        if creds.username.is_some() && creds.password.is_some() {
+            let _ = shutdown_tx.send(());
+            let _ = auth_server_handle.await;
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(PORT_RELEASE_DELAY_MS)).await;
+            break;
+        }
+    }
+}
+
 pub async fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
@@ -192,6 +242,17 @@ pub async fn run() -> Result<(), Error> {
             audio_cache_time_to_live,
             disable_tui_album_cover,
         } => {
+            let database_credentials = database.get_credentials().await?;
+
+            if web
+                && username.is_none()
+                && database_credentials.username.is_none()
+                && password.is_none()
+                && database_credentials.password.is_none()
+            {
+                handle_missing_credentials(&database, port).await;
+            }
+
             let database_credentials = database.get_credentials().await?;
             let database_configuration = database.get_configuration().await?;
             let tracklist = database.get_tracklist().await.unwrap_or_default();

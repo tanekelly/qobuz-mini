@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" class="h-full dark">
+  @defer (head.html) {}
+  <body class="flex flex-col justify-between h-full text-gray-50 bg-black">
+    <div class="flex justify-center items-center w-full h-full">
+      <div class="flex flex-col gap-4">
+        @if (error) {
+          <div class="text-red-500 text-center text-lg">
+            {{ error }}
+          </div>
+        }
+        <form class="flex flex-col gap-4" action="/auth/login" method="post">
+          <input
+            class="p-2 w-full text-black bg-white rounded"
+            type="text"
+            id="username"
+            name="username"
+            placeholder="Username"
+            required
+          />
+          <input
+            class="p-2 w-full text-black bg-white rounded"
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Password"
+            required
+          />
+          <button class="button button-primary" type="submit">Submit</button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
