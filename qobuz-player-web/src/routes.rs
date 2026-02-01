@@ -3,7 +3,6 @@ pub mod api;
 pub mod artist;
 pub mod auth;
 pub mod controls;
-pub mod discover;
 pub mod library;
 pub mod now_playing;
 pub mod playlist;

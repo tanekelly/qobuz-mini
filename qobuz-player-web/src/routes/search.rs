@@ -8,6 +8,7 @@ use axum::{
 use qobuz_player_models::SearchResults;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::try_join;
 
 #[derive(Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -18,10 +19,16 @@ pub enum Tab {
     Tracks,
 }
 
-use crate::{AppState, ResponseResult, ok_or_error_page, ok_or_send_error_toast};
+use crate::{AppState, Discover, ResponseResult, ok_or_error_page, ok_or_send_error_toast};
 
 pub fn routes() -> Router<std::sync::Arc<crate::AppState>> {
-    Router::new().route("/search/{tab}", get(index).post(search))
+    Router::new()
+        .route("/discover", get(redirect_to_search))
+        .route("/search/{tab}", get(index).post(search))
+}
+
+async fn redirect_to_search() -> axum::response::Redirect {
+    axum::response::Redirect::to("/search/albums")
 }
 
 #[derive(Deserialize)]
@@ -37,14 +44,29 @@ async fn index(
     let query = parameters
         .query
         .and_then(|s| if s.is_empty() { None } else { Some(s) });
-    let search_results = match query {
-        Some(query) => ok_or_error_page(&state, state.client.search(query).await)?,
-        None => SearchResults::default(),
+    let (search_results, discover) = match &query {
+        Some(q) => {
+            let results = ok_or_error_page(&state, state.client.search(q.clone()).await)?;
+            (results, None as Option<Discover>)
+        }
+        None => {
+            let (albums, playlists) = ok_or_error_page(
+                &state,
+                try_join!(
+                    state.client.featured_albums(),
+                    state.client.featured_playlists(),
+                ),
+            )?;
+            (
+                SearchResults::default(),
+                Some(Discover { albums, playlists }),
+            )
+        }
     };
 
     Ok(state.render(
         "search.html",
-        &json!({"search_results": search_results, "tab": tab}),
+        &json!({"search_results": search_results, "tab": tab, "discover": discover}),
     ))
 }
 
@@ -56,13 +78,28 @@ async fn search(
     let query = parameters
         .query
         .and_then(|s| if s.is_empty() { None } else { Some(s) });
-    let search_results = match query {
-        Some(query) => ok_or_send_error_toast(&state, state.client.search(query).await)?,
-        None => SearchResults::default(),
+    let (search_results, discover) = match &query {
+        Some(q) => {
+            let results = ok_or_send_error_toast(&state, state.client.search(q.clone()).await)?;
+            (results, None as Option<Discover>)
+        }
+        None => {
+            let (albums, playlists) = ok_or_send_error_toast(
+                &state,
+                try_join!(
+                    state.client.featured_albums(),
+                    state.client.featured_playlists(),
+                ),
+            )?;
+            (
+                SearchResults::default(),
+                Some(Discover { albums, playlists }),
+            )
+        }
     };
 
     Ok(state.render(
         "search-content.html",
-        &json!({"search_results": search_results, "tab": tab }),
+        &json!({"search_results": search_results, "tab": tab, "discover": discover}),
     ))
 }
