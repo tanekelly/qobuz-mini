@@ -89,6 +89,7 @@ pub enum Output {
     Popup(Popup),
     PopPoputUpdateLibrary,
     AddTrackToPlaylist(Track),
+    AddTrackToPlaylistAndPopPopup((u32, u32)),
 }
 
 #[derive(Default, PartialEq)]
@@ -273,7 +274,6 @@ impl App {
                 self.update_library().await;
                 self.should_draw = true;
             }
-
             Output::NotConsumed => match key_code {
                 KeyCode::Char('?') => {
                     self.app_state = AppState::Help;
@@ -372,6 +372,30 @@ impl App {
                     self.app_state = AppState::Popup(popups);
                     self.should_draw = true;
                 }
+            }
+            Output::AddTrackToPlaylistAndPopPopup((track_id, playlist_id)) => {
+                match self
+                    .client
+                    .playlist_add_track(playlist_id, &[track_id])
+                    .await
+                {
+                    Ok(_) => {
+                        if let AppState::Popup(popups) = &mut self.app_state {
+                            popups.pop();
+                            if popups.is_empty() {
+                                self.app_state = AppState::Normal;
+                            }
+                            self.update_library().await;
+                        }
+                        self.notifications
+                            .push(Notification::Info("Added to playlist".into())); // Add track and playlist name
+                    }
+                    Err(err) => {
+                        self.notifications
+                            .push(Notification::Error(err.to_string()));
+                    }
+                };
+                self.should_draw = true;
             }
         }
     }

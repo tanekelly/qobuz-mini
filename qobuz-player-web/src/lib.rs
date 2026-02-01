@@ -473,6 +473,19 @@ pub struct Discover {
     pub playlists: Vec<(String, Vec<Playlist>)>,
 }
 
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+pub struct GenreData {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+pub struct GenreAlbums {
+    pub genre: GenreData,
+    pub albums: Vec<(String, Vec<AlbumSimple>)>,
+}
+
 type ResponseResult = std::result::Result<axum::response::Response, axum::response::Response>;
 
 #[allow(clippy::result_large_err)]
