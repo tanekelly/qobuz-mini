@@ -1,7 +1,7 @@
 use moka::future::Cache;
 use qobuz_player_client::{client::AudioQuality, qobuz_models::TrackURL};
 use qobuz_player_models::{
-    Album, AlbumSimple, Artist, ArtistPage, Favorites, Genre, Library, Playlist, PlaylistSimple,
+    Album, AlbumSimple, Artist, ArtistPage, Genre, Library, Playlist, PlaylistSimple,
     SearchResults, Track,
 };
 use std::sync::OnceLock;

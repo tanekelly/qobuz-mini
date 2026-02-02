@@ -8,7 +8,7 @@ use axum::{
 };
 use serde_json::json;
 
-use crate::{AppState, GenreAlbums, GenreData, ResponseResult, ok_or_error_page};
+use crate::{AppState, ResponseResult, ok_or_error_page};
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -25,7 +25,7 @@ async fn index(State(state): State<Arc<AppState>>) -> ResponseResult {
     ))
 }
 
-async fn detail(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -> ResponseResult {
+async fn detail(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> ResponseResult {
     let genres = ok_or_error_page(&state, state.client.genres().await)?;
     let genre = genres
         .into_iter()
@@ -38,20 +38,16 @@ async fn detail(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -> Resp
                 .into_response()
         })?;
 
-    let albums = ok_or_error_page(&state, state.client.genre_albums(id).await)?;
-
-    let genre_data = GenreData {
-        id: genre.id,
-        name: genre.name,
-        slug: genre.slug,
-    };
-    let genre_albums = GenreAlbums {
-        genre: genre_data,
-        albums,
-    };
+    let (albums, playlists) = ok_or_error_page(
+        &state,
+        tokio::try_join!(
+            state.client.genre_albums(id),
+            state.client.genre_playlists(id),
+        ),
+    )?;
 
     Ok(state.render(
         "genre-detail.html",
-        &json!({"genre_albums": genre_albums}),
+        &json!({"genre": genre, "albums": albums, "playlists": playlists}),
     ))
 }

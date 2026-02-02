@@ -157,7 +157,8 @@ async fn set_preferred_genre(
 
     let genres = state.client.genres().await.unwrap_or_default();
     let label = preferred_genre_id
-        .and_then(|id| genres.iter().find(|g| g.id == id).map(|g| g.name.as_str()))
+        .and_then(|id: i64| id.try_into().ok())
+        .and_then(|id: u32| genres.iter().find(|g| g.id == id).map(|g| g.name.as_str()))
         .unwrap_or("Discover");
     state.broadcast.send(Notification::Info(
         format!("Search default set to '{}'.", label)

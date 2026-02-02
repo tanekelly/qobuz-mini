@@ -23,12 +23,7 @@ use crate::{AppState, Discover, ResponseResult, ok_or_error_page, ok_or_send_err
 
 pub fn routes() -> Router<std::sync::Arc<crate::AppState>> {
     Router::new()
-        .route("/discover", get(redirect_to_search))
         .route("/search/{tab}", get(index).post(search))
-}
-
-async fn redirect_to_search() -> axum::response::Redirect {
-    axum::response::Redirect::to("/search/albums")
 }
 
 #[derive(Deserialize)]
@@ -56,7 +51,8 @@ async fn index(
                 .await
                 .ok()
                 .and_then(|c| c.preferred_genre_id)
-                .filter(|&id| id != 0);
+                .filter(|&id| id != 0)
+                .and_then(|id| id.try_into().ok());
 
             let (albums, playlists) = if let Some(genre_id) = preferred_genre_id {
                 let albums = ok_or_error_page(&state, state.client.genre_albums(genre_id).await)?;
@@ -103,7 +99,8 @@ async fn search(
                 .await
                 .ok()
                 .and_then(|c| c.preferred_genre_id)
-                .filter(|&id| id != 0);
+                .filter(|&id| id != 0)
+                .and_then(|id| id.try_into().ok());
 
             let (albums, playlists) = if let Some(genre_id) = preferred_genre_id {
                 let albums =
