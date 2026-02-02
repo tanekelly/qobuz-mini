@@ -32,8 +32,8 @@ use tokio_stream::wrappers::BroadcastStream;
 use crate::{
     app_state::AppState,
     routes::{
-        album, api, artist, auth, controls, genre, library, now_playing, playlist, queue, search,
-        settings,
+        album, api, artist, auth, controls, discover, genre, library, now_playing, playlist, queue,
+        search, settings,
     },
     views::templates,
 };
@@ -341,6 +341,7 @@ async fn create_router(
         .merge(queue::routes())
         .merge(api::routes())
         .merge(search::routes())
+        .merge(discover::routes())
         .merge(album::routes())
         .merge(artist::routes())
         .merge(playlist::routes())
@@ -474,19 +475,6 @@ pub struct Discover {
     pub playlists: Vec<(String, Vec<Playlist>)>,
 }
 
-#[derive(Clone, serde::Deserialize, serde::Serialize)]
-pub struct GenreData {
-    pub id: i64,
-    pub name: String,
-    pub slug: String,
-}
-
-#[derive(Clone, serde::Deserialize, serde::Serialize)]
-pub struct GenreAlbums {
-    pub genre: GenreData,
-    pub albums: Vec<(String, Vec<AlbumSimple>)>,
-}
-
 type ResponseResult = std::result::Result<axum::response::Response, axum::response::Response>;
 
 #[allow(clippy::result_large_err)]
@@ -507,11 +495,13 @@ fn ok_or_error_page<T>(
 ) -> Result<T, axum::response::Response> {
     match value {
         Ok(value) => Ok(value),
-        Err(err) => Err(state
-            .templates
-            .borrow()
-            .render("error-page.html", &json!({"error": err.to_string()}))
-            .into_response()),
+        Err(err) => Err(Html(
+            state
+                .templates
+                .borrow()
+                .render("error-page.html", &json!({"error": err.to_string()})),
+        )
+        .into_response()),
     }
 }
 

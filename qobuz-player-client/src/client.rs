@@ -9,6 +9,7 @@ use crate::{
         artist_page,
         library::Library,
         featured::{FeaturedAlbumsResponse, FeaturedPlaylistsResponse},
+        genre::{self, GenreFeaturedPlaylists, GenreResponse},
         playlist::{self, UserPlaylistsResult},
         search_results::SearchAllResults,
         track,
@@ -133,6 +134,7 @@ enum Endpoint {
     PlaylistFeatured,
     GenreList,
     GenreFeatured,
+    GenrePlaylists,
 }
 
 impl Display for Endpoint {
@@ -164,6 +166,7 @@ impl Display for Endpoint {
             Endpoint::PlaylistFeatured => "playlist/getFeatured",
             Endpoint::GenreList => "genre/list",
             Endpoint::GenreFeatured => "album/getFeatured",
+            Endpoint::GenrePlaylists => "discover/playlists",
         };
 
         f.write_str(endpoint)
@@ -228,8 +231,9 @@ impl Client {
 
         let mut albums = vec![("Album of the week".to_string(), album_of_the_week)];
 
-        let (a, b, c, d) = try_join!(
+        let (a, b, c, d, e) = try_join!(
             make_call("press-awards"),
+            make_call("most-streamed"),
             make_call("new-releases-full"),
             make_call("qobuzissims"),
             make_call("ideal-discography"),
@@ -237,9 +241,10 @@ impl Client {
 
         let mut other = parse_featured_albums(vec![
             ("Press awards".to_string(), a),
-            ("New releases".to_string(), b),
-            ("Qobuzissims".to_string(), c),
-            ("Ideal discography".to_string(), d),
+            ("Most streamed".to_string(), b),
+            ("New releases".to_string(), c),
+            ("Qobuzissims".to_string(), d),
+            ("Ideal discography".to_string(), e),
         ]);
 
         albums.append(&mut other);
@@ -259,111 +264,24 @@ impl Client {
         let response =
             get!(self, &endpoint, Some(&params)).map(|x| vec![("Editor picks".to_string(), x)])?;
 
-        Ok(parse_featured_playlists(
+        Ok(parse_featured_playlists_response(
             response,
             self.user_id,
             &self.max_audio_quality,
         ))
     }
 
-    pub async fn genres(&self) -> Result<Vec<crate::qobuz_models::genre::Genre>> {
-        // Try to get genres from API first
+    pub async fn genres(&self) -> Result<Vec<qobuz_player_models::Genre>> {
         let endpoint = format!("{}{}", self.base_url, Endpoint::GenreList);
-        
-        // Try genre/list endpoint
-        match self.make_get_call(&endpoint, None).await {
-            Ok(response) => {
-                // Try to parse the response
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&response) {
-                    // Try different possible structures
-                    if let Some(genres_list) = parsed.get("genres")
-                        .and_then(|g| g.as_array())
-                        .or_else(|| parsed.get("items").and_then(|i| i.as_array()))
-                        .or_else(|| parsed.get("data").and_then(|d| d.as_array()))
-                    {
-                        let genres: Vec<crate::qobuz_models::genre::Genre> = genres_list
-                            .iter()
-                            .filter_map(|g| {
-                                Some(crate::qobuz_models::genre::Genre {
-                                    id: g.get("id")?.as_i64()?,
-                                    name: g.get("name")?.as_str()?.to_string(),
-                                    slug: g.get("slug")
-                                        .and_then(|s| s.as_str())
-                                        .unwrap_or("")
-                                        .to_string(),
-                                })
-                            })
-                            .collect();
-                        
-                        if !genres.is_empty() {
-                            return Ok(genres);
-                        }
-                    }
-                }
-            }
-            Err(_) => {}
-        }
-        
-        // Fallback to static list with correct IDs from working implementation
-        let genres = vec![
-            crate::qobuz_models::genre::Genre {
-                id: 112,
-                name: "Pop/Rock".to_string(),
-                slug: "pop-rock".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 80,
-                name: "Jazz".to_string(),
-                slug: "jazz".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 10,
-                name: "Classical".to_string(),
-                slug: "classical".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 64,
-                name: "Electronic".to_string(),
-                slug: "electronic".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 127,
-                name: "Soul/Funk/R&B".to_string(),
-                slug: "soul-funk-rb".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 116,
-                name: "Metal".to_string(),
-                slug: "metal".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 133,
-                name: "Hip-Hop/Rap".to_string(),
-                slug: "hip-hop-rap".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 2,
-                name: "Blues/Country/Folk".to_string(),
-                slug: "blues-country-folk".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 91,
-                name: "Soundtracks".to_string(),
-                slug: "soundtracks".to_string(),
-            },
-            crate::qobuz_models::genre::Genre {
-                id: 94,
-                name: "World Music".to_string(),
-                slug: "world-music".to_string(),
-            },
-        ];
+        let response: GenreResponse = get!(self, &endpoint, None)?;
+        let genres: Vec<_> = response.genres.items.into_iter().map(parse_genre).collect();
 
         Ok(genres)
     }
 
     pub async fn genre_albums(
         &self,
-        genre_id: i64,
+        genre_id: u32,
     ) -> Result<Vec<(String, Vec<qobuz_player_models::AlbumSimple>)>> {
         let endpoint = format!("{}{}", self.base_url, Endpoint::GenreFeatured);
         let genre_id_str = genre_id.to_string();
@@ -391,11 +309,30 @@ impl Client {
             ("Press awards".to_string(), a),
             ("Most streamed".to_string(), b),
             ("Best sellers".to_string(), c),
-            ("Qobuz grad selection".to_string(), d),
-            ("Top albums".to_string(), e),
+            ("Qobuzissims".to_string(), d),
+            ("New releases".to_string(), e),
         ]);
 
         Ok(albums)
+    }
+
+    pub async fn genre_playlists(
+        &self,
+        genre_id: u32,
+    ) -> Result<Vec<qobuz_player_models::PlaylistSimple>> {
+        let endpoint = format!("{}{}", self.base_url, Endpoint::GenrePlaylists);
+
+        let genre_id = genre_id.to_string();
+
+        let params = vec![
+            ("genre_ids", genre_id.as_str()),
+            ("offset", "0"),
+            ("limit", "20"),
+        ];
+
+        let response = get!(self, &endpoint, Some(&params))?;
+
+        Ok(parse_genre_featured_playlists(response, self.user_id))
     }
 
     pub async fn user_playlists(&self) -> Result<Vec<qobuz_player_models::Playlist>> {
@@ -1160,7 +1097,7 @@ fn parse_featured_albums(
         .collect()
 }
 
-pub fn parse_featured_playlists(
+pub fn parse_featured_playlists_response(
     response: Vec<(String, FeaturedPlaylistsResponse)>,
     user_id: i64,
     max_audio_quality: &AudioQuality,
@@ -1179,6 +1116,17 @@ pub fn parse_featured_playlists(
 
             (featured_type, playlists)
         })
+        .collect()
+}
+
+pub fn parse_genre_featured_playlists(
+    response: GenreFeaturedPlaylists,
+    user_id: i64,
+) -> Vec<qobuz_player_models::PlaylistSimple> {
+    response
+        .items
+        .into_iter()
+        .map(|playlist| parse_playlist_simple(playlist, user_id))
         .collect()
 }
 
@@ -1375,6 +1323,13 @@ fn parse_artist(value: artist::Artist) -> qobuz_player_models::Artist {
     }
 }
 
+fn parse_genre(value: genre::Genre) -> qobuz_player_models::Genre {
+    qobuz_player_models::Genre {
+        name: value.name,
+        id: value.id,
+    }
+}
+
 fn parse_playlist(
     playlist: playlist::Playlist,
     user_id: i64,
@@ -1404,6 +1359,19 @@ fn parse_playlist(
         tracks_count: playlist.tracks_count as u32,
         image,
         tracks,
+    }
+}
+fn parse_playlist_simple(
+    playlist: playlist::PlaylistSimple,
+    user_id: i64,
+) -> qobuz_player_models::PlaylistSimple {
+    qobuz_player_models::PlaylistSimple {
+        id: playlist.id as u32,
+        is_owned: user_id == playlist.owner.id,
+        title: playlist.name,
+        duration_seconds: playlist.duration as u32,
+        tracks_count: playlist.tracks_count as u32,
+        image: Some(playlist.image.rectangle),
     }
 }
 
