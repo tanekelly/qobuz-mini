@@ -209,16 +209,17 @@ impl Database {
     pub async fn get_configuration(&self) -> Result<DatabaseConfiguration> {
         let row = sqlx::query(
             r#"
-            SELECT max_audio_quality, audio_device_name FROM configuration
+            SELECT max_audio_quality, audio_device_name, preferred_genre_id FROM configuration
             WHERE ROWID = 1;
             "#
         )
         .fetch_one(&self.pool)
         .await?;
-        
+
         Ok(DatabaseConfiguration {
             max_audio_quality: row.get("max_audio_quality"),
             audio_device_name: row.get("audio_device_name"),
+            preferred_genre_id: row.get::<Option<i64>, _>("preferred_genre_id"),
         })
     }
 
@@ -231,6 +232,20 @@ impl Database {
             "#,
         )
         .bind(device_name)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_preferred_genre_id(&self, genre_id: Option<i64>) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE configuration
+            SET preferred_genre_id=?1
+            WHERE ROWID = 1
+            "#,
+        )
+        .bind(genre_id)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -390,6 +405,7 @@ pub struct DatabaseCredentials {
 pub struct DatabaseConfiguration {
     pub max_audio_quality: i64,
     pub audio_device_name: Option<String>,
+    pub preferred_genre_id: Option<i64>,
 }
 
 #[derive(Debug, sqlx::FromRow, serde::Deserialize)]

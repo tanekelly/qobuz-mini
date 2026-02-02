@@ -50,13 +50,26 @@ async fn index(
             (results, None as Option<Discover>)
         }
         None => {
-            let (albums, playlists) = ok_or_error_page(
-                &state,
-                try_join!(
-                    state.client.featured_albums(),
-                    state.client.featured_playlists(),
-                ),
-            )?;
+            let preferred_genre_id = state
+                .database
+                .get_configuration()
+                .await
+                .ok()
+                .and_then(|c| c.preferred_genre_id)
+                .filter(|&id| id != 0);
+
+            let (albums, playlists) = if let Some(genre_id) = preferred_genre_id {
+                let albums = ok_or_error_page(&state, state.client.genre_albums(genre_id).await)?;
+                (albums, vec![])
+            } else {
+                ok_or_error_page(
+                    &state,
+                    try_join!(
+                        state.client.featured_albums(),
+                        state.client.featured_playlists(),
+                    ),
+                )?
+            };
             (
                 SearchResults::default(),
                 Some(Discover { albums, playlists }),
@@ -84,13 +97,27 @@ async fn search(
             (results, None as Option<Discover>)
         }
         None => {
-            let (albums, playlists) = ok_or_send_error_toast(
-                &state,
-                try_join!(
-                    state.client.featured_albums(),
-                    state.client.featured_playlists(),
-                ),
-            )?;
+            let preferred_genre_id = state
+                .database
+                .get_configuration()
+                .await
+                .ok()
+                .and_then(|c| c.preferred_genre_id)
+                .filter(|&id| id != 0);
+
+            let (albums, playlists) = if let Some(genre_id) = preferred_genre_id {
+                let albums =
+                    ok_or_send_error_toast(&state, state.client.genre_albums(genre_id).await)?;
+                (albums, vec![])
+            } else {
+                ok_or_send_error_toast(
+                    &state,
+                    try_join!(
+                        state.client.featured_albums(),
+                        state.client.featured_playlists(),
+                    ),
+                )?
+            };
             (
                 SearchResults::default(),
                 Some(Discover { albums, playlists }),
