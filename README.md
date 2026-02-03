@@ -24,8 +24,8 @@ Currently only being developed for windows.
 - Change playback speed & pitch
 - Create & save timestamps
 - Create & save loop sections
-- Audio equalizer
-
+- Built-in audio effects (EQ, compressor?, limiter?, reverb?)
+- External audio plugins (VST2, VST3?, CLAP?)
 
 ## Installation
 ### Fonts
