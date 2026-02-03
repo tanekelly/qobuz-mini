@@ -72,6 +72,7 @@ pub struct App {
     pub notifications: NotificationList,
     pub full_screen: bool,
     pub disable_tui_album_cover: bool,
+    pub playback_config: (f32, i16, i16),
 }
 
 #[derive(Default)]
@@ -216,11 +217,22 @@ impl App {
                         }
                         
                         if let Notification::Info(msg) = &notification {
-                            if msg.contains("Audio device list updated") 
+                            if msg.contains("Audio device list updated")
                                 || msg.contains("Default audio device")
                                 || msg.contains("Audio device changed to")
-                                || msg.contains("was removed") {
+                                || msg.contains("was removed")
+                                || msg.starts_with("Time stretch set to")
+                                || msg.starts_with("Pitch set to")
+                                || msg.starts_with("Pitch (cents) set to")
+                            {
                                 self.settings.refresh_from_database(&self.database).await;
+                                if let Ok(cfg) = self.database.get_configuration().await {
+                                    self.playback_config = (
+                                        cfg.time_stretch_ratio,
+                                        cfg.pitch_semitones,
+                                        cfg.pitch_cents,
+                                    );
+                                }
                                 terminal.clear()?;
                                 terminal.draw(|frame| self.render(frame))?;
                                 self.should_draw = false;
@@ -300,7 +312,7 @@ impl App {
                     self.should_draw = true;
                 }
                 KeyCode::Char('5') => {
-                    self.navigate_to_settings();
+                    self.navigate_to_settings().await;
                     self.should_draw = true;
                 }
                 KeyCode::Char(' ') => {
@@ -475,7 +487,13 @@ impl App {
                     }
                     Tab::Settings => {
                         self.settings
-                            .handle_events(event, &self.database, &self.exit_sender, &self.controls)
+                            .handle_events(
+                                event,
+                                &self.database,
+                                &self.exit_sender,
+                                &self.controls,
+                                &mut self.playback_config,
+                            )
                             .await
                     }
                 };
@@ -506,8 +524,9 @@ impl App {
         self.current_screen = Tab::Discover;
     }
 
-    fn navigate_to_settings(&mut self) {
+    async fn navigate_to_settings(&mut self) {
         self.current_screen = Tab::Settings;
+        self.settings.refresh_from_database(&self.database).await;
     }
 
     fn exit(&mut self) {

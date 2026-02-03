@@ -15,9 +15,10 @@ use crate::{
     database::Database,
     downloader::Downloader,
     notification::{Notification, NotificationBroadcast},
-    sink::{QueryTrackResult, list_audio_devices},
+    sink::{PlaybackStretchConfig, QueryTrackResult, list_audio_devices},
     tracklist::{SingleTracklist, TracklistType},
 };
+use parking_lot::RwLock;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use crate::{
@@ -45,6 +46,7 @@ pub struct Player {
     next_track_is_queried: bool,
     next_track_in_sink_queue: bool,
     downloader: Downloader,
+    playback_stretch: Arc<RwLock<PlaybackStretchConfig>>,
 }
 
 impl Player {
@@ -57,7 +59,8 @@ impl Player {
         database: Arc<Database>,
     ) -> Result<Self> {
         let (volume, volume_receiver) = watch::channel(volume);
-        let sink = Sink::new(volume_receiver)?;
+        let playback_stretch = Arc::new(RwLock::new(PlaybackStretchConfig::default()));
+        let sink = Sink::new(volume_receiver, playback_stretch.clone())?;
 
         let downloader = Downloader::new(audio_cache_dir, broadcast.clone(), database.clone());
 
@@ -88,6 +91,7 @@ impl Player {
             next_track_in_sink_queue: false,
             next_track_is_queried: false,
             downloader,
+            playback_stretch,
         })
     }
 
@@ -109,6 +113,11 @@ impl Player {
 
     pub fn tracklist(&self) -> TracklistReceiver {
         self.tracklist_tx.subscribe()
+    }
+
+    fn rescale_display_position(pos: Duration, old_ratio: f32, new_ratio: f32) -> Duration {
+        let secs = pos.as_secs_f64() * old_ratio as f64 / new_ratio as f64;
+        Duration::from_secs_f64(secs.max(0.0))
     }
 
     pub async fn set_audio_device(&mut self, device_name: Option<String>) -> Result<()> {
@@ -158,7 +167,7 @@ impl Player {
                         }
                     }
                     
-                    match self.sink.query_track(&track_path) {
+                    match self.sink.query_track(&track_path, None) {
                         Ok(_) => {
                             if let Err(e) = self.sink.play() {
                                 tracing::warn!("Failed to play sink after device change: {}", e);
@@ -284,7 +293,7 @@ impl Player {
             .ensure_track_is_downloaded(track_url, track)
             .await
         {
-            match self.sink.query_track(&track_path) {
+            match self.sink.query_track(&track_path, None) {
                 Ok(query_result) => {
                     if next_track {
                         self.next_track_in_sink_queue = match query_result {
@@ -352,12 +361,16 @@ impl Player {
         Ok(())
     }
 
-    fn jump_forward(&mut self) -> Result<()> {
-        let duration = self
-            .tracklist_rx
+    fn current_display_duration(&self) -> Option<Duration> {
+        let ratio = self.playback_stretch.read().time_stretch_ratio.max(0.01) as f64;
+        self.tracklist_rx
             .borrow()
             .current_track()
-            .map(|x| Duration::from_secs(x.duration_seconds as u64));
+            .map(|x| Duration::from_secs_f64(x.duration_seconds as f64 / ratio))
+    }
+
+    fn jump_forward(&mut self) -> Result<()> {
+        let duration = self.current_display_duration();
 
         if let Some(duration) = duration {
             let ten_seconds = Duration::from_secs(10);
@@ -611,12 +624,15 @@ impl Player {
             .tracklist_rx
             .borrow()
             .current_track()
-            .map(|x| x.duration_seconds);
+            .map(|x| {
+                x.duration_seconds as f64
+                    / self.playback_stretch.read().time_stretch_ratio.max(0.01) as f64
+            });
 
         if let Some(duration) = duration {
             let position = position.as_secs();
 
-            let track_about_to_finish = (duration as i16 - position as i16) < 60;
+            let track_about_to_finish = (duration as i64 - position as i64) < 60;
 
             if track_about_to_finish && !self.next_track_is_queried {
                 tracing::info!("Track about to finish");
@@ -683,7 +699,7 @@ impl Player {
             ControlCommand::SetAudioDevice { device_name } => {
                 tracing::info!("Player: Received SetAudioDevice command: {:?}", device_name);
                 let device_display = device_name.as_deref().unwrap_or("Default").to_string();
-                
+
                 if let Err(e) = self.database.set_audio_device(device_name.clone()).await {
                     tracing::error!("Failed to save audio device to database: {}", e);
                     self.broadcast.send(Notification::Error(
@@ -698,6 +714,57 @@ impl Player {
                     self.broadcast.send(Notification::Success(
                         format!("Output changed to '{}'.", device_display)
                     ));
+                }
+            }
+            ControlCommand::SetTimeStretch { ratio } => {
+                let ratio = ratio.clamp(0.5, 2.0);
+                let old_ratio = self.playback_stretch.read().time_stretch_ratio;
+                if let Err(e) = self.database.set_time_stretch_ratio(ratio).await {
+                    tracing::error!("Failed to save time stretch: {}", e);
+                } else {
+                    let current_pos = self.sink.position();
+                    self.playback_stretch.write().time_stretch_ratio = ratio;
+                    self.broadcast.send(Notification::Info(
+                        format!("Time stretch set to {:.1}x.", ratio)
+                    ));
+                    let live = self.sink.supports_live_stretch();
+                    if live && current_pos > Duration::ZERO {
+                        let desired_pos = Self::rescale_display_position(current_pos, old_ratio, ratio);
+                        let delta_ms =
+                            desired_pos.as_millis() as i64 - current_pos.as_millis() as i64;
+                        self.sink.adjust_position_offset_ms(delta_ms);
+                        self.position.send(desired_pos)?;
+                    } else if !live {
+                        let _ = self.reload_current_track_with_stretch(Some(old_ratio)).await;
+                    }
+                }
+            }
+            ControlCommand::SetPitch { semitones } => {
+                let semitones = semitones.clamp(-12, 12);
+                if let Err(e) = self.database.set_pitch_semitones(semitones).await {
+                    tracing::error!("Failed to save pitch: {}", e);
+                } else {
+                    self.playback_stretch.write().pitch_semitones = semitones;
+                    self.broadcast.send(Notification::Info(
+                        format!("Pitch set to {} semitones.", semitones)
+                    ));
+                    if !self.sink.supports_live_stretch() {
+                        let _ = self.reload_current_track_with_stretch(None).await;
+                    }
+                }
+            }
+            ControlCommand::SetPitchCents { cents } => {
+                let cents = cents.clamp(-100, 100);
+                if let Err(e) = self.database.set_pitch_cents(cents).await {
+                    tracing::error!("Failed to save pitch cents: {}", e);
+                } else {
+                    self.playback_stretch.write().pitch_cents = cents;
+                    self.broadcast.send(Notification::Info(
+                        format!("Pitch (cents) set to {}.", cents)
+                    ));
+                    if !self.sink.supports_live_stretch() {
+                        let _ = self.reload_current_track_with_stretch(None).await;
+                    }
                 }
             }
             ControlCommand::AddTrackToQueue { id } => self.add_track_to_queue(id).await?,
@@ -757,6 +824,59 @@ impl Player {
         Ok(())
     }
 
+    async fn reload_current_track_with_stretch(
+        &mut self,
+        old_time_stretch_ratio: Option<f32>,
+    ) -> Result<()> {
+        if *self.target_status.borrow() != Status::Playing {
+            return Ok(());
+        }
+        let track = match self.tracklist_rx.borrow().current_track() {
+            Some(t) => t.clone(),
+            None => return Ok(()),
+        };
+        let track_url = self.client.track_url(track.id).await.ok();
+        let track_url = match track_url {
+            Some(u) => u,
+            None => return Ok(()),
+        };
+        let path = self
+            .downloader
+            .ensure_track_is_downloaded(track_url, &track)
+            .await;
+        let path = match path {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+        let current_pos = self.sink.position();
+        self.sink.clear()?;
+        let new_ratio = self.playback_stretch.read().time_stretch_ratio;
+        let start_at = if current_pos > Duration::ZERO {
+            if let Some(old_ratio) = old_time_stretch_ratio {
+                Some(Self::rescale_display_position(current_pos, old_ratio, new_ratio))
+            } else {
+                Some(current_pos)
+            }
+        } else {
+            None
+        };
+        match self.sink.query_track(&path, start_at) {
+            Ok(_) => {
+                let _ = self.sink.play();
+                if let Some(pos) = start_at {
+                    self.position.send(pos)?;
+                } else {
+                    self.position.send(self.sink.position())?;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("Failed to reload track with new stretch: {}", e);
+                Err(e)
+            }
+        }
+    }
+
     fn done_buffering(&mut self, path: PathBuf) -> Result<()> {
         if *self.target_status.borrow() != Status::Playing {
             self.set_target_status(Status::Playing);
@@ -764,7 +884,7 @@ impl Player {
 
         tracing::info!("Done buffering track: {}", path.to_string_lossy());
 
-        match self.sink.query_track(&path) {
+        match self.sink.query_track(&path, None) {
             Ok(result) => {
                 self.next_track_in_sink_queue = match result {
                     QueryTrackResult::Queued => true,
@@ -808,6 +928,11 @@ impl Player {
                 tracing::info!("Setting initial audio device from database: {}", device_name);
                 self.sink.set_device(Some(device_name));
             }
+            *self.playback_stretch.write() = PlaybackStretchConfig {
+                time_stretch_ratio: config.time_stretch_ratio,
+                pitch_semitones: config.pitch_semitones,
+                pitch_cents: config.pitch_cents,
+            };
         }
 
         let mut interval = tokio::time::interval(Duration::from_millis(INTERVAL_MS));

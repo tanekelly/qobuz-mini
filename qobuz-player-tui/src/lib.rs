@@ -44,6 +44,11 @@ pub async fn init(
     let now_playing = get_current_state(tracklist_value, status_value).await;
     let exit_sender_clone = exit_sender.clone();
 
+    let playback_config = database
+        .get_configuration()
+        .await
+        .map(|c| (c.time_stretch_ratio, c.pitch_semitones, c.pitch_cents))
+        .unwrap_or((1.0, 0, 0));
     let mut app = App {
         broadcast,
         notifications: Default::default(),
@@ -66,6 +71,7 @@ pub async fn init(
         database,
         exit_sender,
         client,
+        playback_config,
     };
 
     _ = app.run(&mut terminal).await;

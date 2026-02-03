@@ -607,3 +607,39 @@ function updateBlurredBackground() {
     backgroundImage.style.opacity = "0";
   }
 }
+
+function formatSettingsSliderPreview(input) {
+  const name = input.getAttribute("name");
+  const value = input.value;
+  if (name === "time_stretch_ratio") {
+    return (parseFloat(value) || 1).toFixed(1) + "x";
+  }
+  if (name === "pitch_semitones") {
+    return value + " semitones";
+  }
+  if (name === "pitch_cents") {
+    return value + " cents";
+  }
+  return value;
+}
+
+document.addEventListener("input", function (event) {
+  const input = event.target;
+  if (!input.matches || !input.matches(".settings-slider")) {
+    return;
+  }
+  const preview = input.nextElementSibling;
+  if (preview && preview.classList.contains("settings-slider-preview")) {
+    preview.textContent = formatSettingsSliderPreview(input);
+  }
+});
+
+document.addEventListener("change", function (event) {
+  const input = event.target;
+  if (!input.matches || !input.matches(".settings-slider")) {
+    return;
+  }
+  if (input.form && input.nextElementSibling?.classList.contains("settings-slider-preview")) {
+    input.form.requestSubmit();
+  }
+});

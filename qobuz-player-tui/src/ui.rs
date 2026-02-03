@@ -30,6 +30,8 @@ impl App {
                 &mut self.now_playing,
                 self.full_screen,
                 self.disable_tui_album_cover,
+                self.playback_config.0,
+                self.playback_config.1,
             );
             return;
         }
@@ -69,6 +71,8 @@ impl App {
                 &mut self.now_playing,
                 self.full_screen,
                 self.disable_tui_album_cover,
+                self.playback_config.0,
+                self.playback_config.1,
             );
         }
 

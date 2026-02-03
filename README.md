@@ -42,6 +42,8 @@ cargo install --git https://github.com/SofusA/qobuz-player
 
 ### Build from source
 
+Dependencies: `llvm` (for pitch and time)
+
 Linux dependencies: `alsa-sys-devel`, `just`.
 ```
 cargo build
@@ -71,6 +73,9 @@ qobuz-player
 
 # open player with web ui
 qobuz-player open --web 
+
+# refresh database
+qobuz-player refresh
 ```
 
 ## Web UI
@@ -84,3 +89,8 @@ Feature requests, issues and contributions are very welcome.
 
 ## Credits
 This codebase is a fork of [qobuz-player](https://github.com/SofusA/qobuz-player) made by [SofusA](https://github.com/SofusA) which is based off [hifi.rs](https://github.com/iamdb/hifi.rs) by [David Benjamin](https://github.com/iamdb)
+
+### Pitch & time stretching
+- [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch)
+- [signalsmith-stretch-rs](https://github.com/colinmarc/signalsmith-stretch-rs)
+- [Geraint Luff](https://geraintluff.github.io/jsfx/) - [Audio Developer Conference 2022](https://www.youtube.com/watch?v=fJUmmcGKZMI)

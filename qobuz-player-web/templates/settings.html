@@ -1,3 +1,14 @@
 @defer (base.html; active_page="Settings"; playing_info=playing_info) {
-  @defer (settings-content.html; devices=devices; selected_device=selected_device; selected_device_name=selected_device_name; genres=genres; preferred_genre_id=preferred_genre_id; is_discover=is_discover) {}
+  <div
+    id="settings-content"
+    class="flex flex-col gap-8"
+    hx-get="/settings/partial"
+    hx-trigger="load"
+    hx-swap="outerHTML"
+    hx-indicator="#loading-spinner"
+  >
+    <div class="flex flex-col gap-8 items-center justify-center min-h-[200px] text-gray-400">
+      <span class="size-12">@defer (icons/loading-spinner.html) {}</span>
+    </div>
+  </div>
 }

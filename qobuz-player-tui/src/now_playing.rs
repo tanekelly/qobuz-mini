@@ -21,6 +21,8 @@ pub fn render(
     state: &mut NowPlayingState,
     full_screen: bool,
     disable_tui_album_cover: bool,
+    time_stretch_ratio: f32,
+    _pitch_semitones: i16,
 ) {
     let track = match &state.playing_track {
         Some(t) => t,
@@ -79,18 +81,23 @@ pub fn render(
         state.tracklist_length
     )));
 
-    let duration = if state.duration_ms < track.duration_seconds * 1000 {
+    let displayed_duration_ms =
+        (track.duration_seconds as f32 * 1000.0 / time_stretch_ratio).round() as u32;
+    let duration = if state.duration_ms < displayed_duration_ms {
         state.duration_ms
     } else {
-        track.duration_seconds * 1000
+        displayed_duration_ms
     };
-
-    let ratio = duration as f64 / (track.duration_seconds * 1000) as f64;
-
+    let ratio = if displayed_duration_ms > 0 {
+        duration as f64 / displayed_duration_ms as f64
+    } else {
+        0.0
+    };
+    let displayed_sec = displayed_duration_ms / 1000;
     let label = format!(
         "{} / {}",
         format_mseconds(state.duration_ms),
-        format_seconds(track.duration_seconds),
+        format_seconds(displayed_sec),
     );
 
     let gauge = Gauge::default()

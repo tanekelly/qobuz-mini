@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use rodio::Source;
 use rodio::cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{decoder::DecoderBuilder, queue::queue};
@@ -12,30 +12,54 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use crate::error::Error;
+use crate::stretch_source_signalsmith::SignalsmithStretchSource;
 use crate::{Result, VolumeReceiver};
+
+#[derive(Clone, Copy)]
+pub struct PlaybackStretchConfig {
+    pub time_stretch_ratio: f32,
+    pub pitch_semitones: i16,
+    pub pitch_cents: i16,
+}
+
+impl Default for PlaybackStretchConfig {
+    fn default() -> Self {
+        Self {
+            time_stretch_ratio: 1.0,
+            pitch_semitones: 0,
+            pitch_cents: 0,
+        }
+    }
+}
 
 pub struct Sink {
     output_stream: Option<rodio::OutputStream>,
     sink: Option<rodio::Sink>,
     sender: Option<Arc<rodio::queue::SourcesQueueInput>>,
     volume: VolumeReceiver,
+    playback_stretch: Arc<RwLock<PlaybackStretchConfig>>,
+    live_stretch_enabled: bool,
     track_finished: Sender<()>,
     track_handle: Option<JoinHandle<()>>,
     duration_played: Arc<Mutex<Duration>>,
+    position_offset_ms: Arc<Mutex<i64>>,
     selected_device_name: Arc<Mutex<Option<String>>>,
 }
 
 impl Sink {
-    pub fn new(volume: VolumeReceiver) -> Result<Self> {
+    pub fn new(volume: VolumeReceiver, playback_stretch: Arc<RwLock<PlaybackStretchConfig>>) -> Result<Self> {
         let (track_finished, _) = watch::channel(());
         Ok(Self {
             sink: Default::default(),
             output_stream: Default::default(),
             sender: Default::default(),
             volume,
+            playback_stretch,
+            live_stretch_enabled: false,
             track_finished,
             track_handle: Default::default(),
             duration_played: Default::default(),
+            position_offset_ms: Arc::new(Mutex::new(0)),
             selected_device_name: Arc::new(Mutex::new(None)),
         })
     }
@@ -66,7 +90,19 @@ impl Sink {
             return Default::default();
         }
 
-        position - duration_played
+        let raw = position - duration_played;
+        let raw_ms = raw.as_millis() as i64;
+        let offset_ms = *self.position_offset_ms.lock();
+        Duration::from_millis(raw_ms.saturating_add(offset_ms).max(0) as u64)
+    }
+
+    fn reset_position_adjustment(&self) {
+        *self.position_offset_ms.lock() = 0;
+    }
+
+    pub fn adjust_position_offset_ms(&self, delta_ms: i64) {
+        let mut offset = self.position_offset_ms.lock();
+        *offset = offset.saturating_add(delta_ms);
     }
 
     pub fn play(&self) -> Result<()> {
@@ -88,6 +124,7 @@ impl Sink {
             match sink.try_seek(duration) {
                 Ok(_) => {
                     *self.duration_played.lock() = Default::default();
+                    self.reset_position_adjustment();
                 }
                 Err(err) => return Err(err.into()),
             };
@@ -103,6 +140,7 @@ impl Sink {
         self.sender = None;
         self.output_stream = None;
         *self.duration_played.lock() = Default::default();
+        self.reset_position_adjustment();
 
         if let Some(handle) = self.track_handle.take() {
             handle.abort();
@@ -114,6 +152,7 @@ impl Sink {
     pub fn clear_queue(&mut self) -> Result<()> {
         tracing::info!("Clearing sink queue");
         *self.duration_played.lock() = Default::default();
+        self.reset_position_adjustment();
 
         if let Some(sender) = self.sender.as_ref() {
             sender.clear();
@@ -125,18 +164,41 @@ impl Sink {
         self.sink.is_none()
     }
 
-    pub fn query_track(&mut self, track_path: &Path) -> Result<QueryTrackResult> {
+    pub fn supports_live_stretch(&self) -> bool {
+        self.live_stretch_enabled
+    }
+
+    pub fn query_track(
+        &mut self,
+        track_path: &Path,
+        start_at: Option<Duration>,
+    ) -> Result<QueryTrackResult> {
         tracing::info!("Sink query track: {}", track_path.to_string_lossy());
 
         let file = fs::File::open(track_path).map_err(|err| Error::StreamError {
             message: format!("Failed to read file: {track_path:?}: {err}"),
         })?;
-        let source = DecoderBuilder::new()
+        let decoded = DecoderBuilder::new()
             .with_data(file)
             .with_seekable(true)
             .build()?;
 
-        let sample_rate = source.sample_rate();
+        let sample_rate = decoded.sample_rate();
+        #[allow(unused_variables)]
+        let channels = decoded.channels();
+        self.live_stretch_enabled = channels == 2;
+        let (mut source, track_duration_override): (
+            Box<dyn rodio::Source<Item = f32> + Send>,
+            Option<Duration>,
+        ) = {
+            if channels == 2 {
+                let stretch_source =
+                    SignalsmithStretchSource::new(decoded, sample_rate, self.playback_stretch.clone());
+                (Box::new(stretch_source), None)
+            } else {
+                (box_source_f32(decoded), None)
+            }
+        };
         let same_sample_rate = self
             .output_stream
             .as_ref()
@@ -220,16 +282,25 @@ impl Sink {
             }
         }
 
+        if let Some(pos) = start_at {
+            if pos > Duration::ZERO {
+                source.try_seek(pos)?;
+            }
+        }
+
         let track_finished = self.track_finished.clone();
-        let track_duration = source.total_duration().unwrap_or_default();
+        let track_duration = track_duration_override
+            .unwrap_or_else(|| source.total_duration().unwrap_or_default());
 
         let duration_played = self.duration_played.clone();
+        let position_offset_ms = self.position_offset_ms.clone();
         let signal = self.sender.as_ref().unwrap().append_with_signal(source);
 
         let track_handle = tokio::spawn(async move {
             loop {
                 if signal.try_recv().is_ok() {
                     *duration_played.lock() += track_duration;
+                    *position_offset_ms.lock() = 0;
                     track_finished.send(()).expect("infallible");
                     break;
                 }
@@ -247,6 +318,13 @@ impl Sink {
             set_volume(sink, &self.volume.borrow());
         }
     }
+}
+
+fn box_source_f32<S>(source: S) -> Box<dyn rodio::Source<Item = f32> + Send>
+where
+    S: rodio::Source<Item = f32> + Send + 'static,
+{
+    Box::new(source)
 }
 
 fn set_volume(sink: &rodio::Sink, volume: &f32) {

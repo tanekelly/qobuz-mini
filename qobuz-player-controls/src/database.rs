@@ -209,17 +209,29 @@ impl Database {
     pub async fn get_configuration(&self) -> Result<DatabaseConfiguration> {
         let row = sqlx::query(
             r#"
-            SELECT max_audio_quality, audio_device_name, preferred_genre_id FROM configuration
+            SELECT max_audio_quality, audio_device_name, preferred_genre_id, time_stretch_ratio, pitch_semitones, pitch_cents FROM configuration
             WHERE ROWID = 1;
             "#
         )
         .fetch_one(&self.pool)
         .await?;
 
+        let time_stretch_ratio: f32 = row
+            .get::<Option<f64>, _>("time_stretch_ratio")
+            .unwrap_or(1.0) as f32;
+        let pitch_semitones: i16 = row
+            .get::<Option<i32>, _>("pitch_semitones")
+            .unwrap_or(0) as i16;
+        let pitch_cents: i16 = row
+            .get::<Option<i32>, _>("pitch_cents")
+            .unwrap_or(0) as i16;
         Ok(DatabaseConfiguration {
             max_audio_quality: row.get("max_audio_quality"),
             audio_device_name: row.get("audio_device_name"),
             preferred_genre_id: row.get::<Option<i64>, _>("preferred_genre_id"),
+            time_stretch_ratio,
+            pitch_semitones,
+            pitch_cents,
         })
     }
 
@@ -246,6 +258,51 @@ impl Database {
             "#,
         )
         .bind(genre_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_time_stretch_ratio(&self, ratio: f32) -> Result<()> {
+        let ratio = ratio.clamp(0.5, 2.0) as f64;
+        sqlx::query(
+            r#"
+            UPDATE configuration
+            SET time_stretch_ratio=?1
+            WHERE ROWID = 1
+            "#,
+        )
+        .bind(ratio)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_pitch_semitones(&self, semitones: i16) -> Result<()> {
+        let semitones = semitones.clamp(-12, 12) as i32;
+        sqlx::query(
+            r#"
+            UPDATE configuration
+            SET pitch_semitones=?1
+            WHERE ROWID = 1
+            "#,
+        )
+        .bind(semitones)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_pitch_cents(&self, cents: i16) -> Result<()> {
+        let cents = cents.clamp(-100, 100) as i32;
+        sqlx::query(
+            r#"
+            UPDATE configuration
+            SET pitch_cents=?1
+            WHERE ROWID = 1
+            "#,
+        )
+        .bind(cents)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -406,6 +463,9 @@ pub struct DatabaseConfiguration {
     pub max_audio_quality: i64,
     pub audio_device_name: Option<String>,
     pub preferred_genre_id: Option<i64>,
+    pub time_stretch_ratio: f32,
+    pub pitch_semitones: i16,
+    pub pitch_cents: i16,
 }
 
 #[derive(Debug, sqlx::FromRow, serde::Deserialize)]

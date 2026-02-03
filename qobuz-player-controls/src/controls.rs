@@ -50,6 +50,9 @@ pub enum ControlCommand {
     SetAudioDevice {
         device_name: Option<String>,
     },
+    SetTimeStretch { ratio: f32 },
+    SetPitch { semitones: i16 },
+    SetPitchCents { cents: i16 },
 }
 
 #[derive(Debug, Clone)]
@@ -169,6 +172,24 @@ impl Controls {
     pub fn set_audio_device(&self, device_name: Option<String>) {
         self.tx
             .send(ControlCommand::SetAudioDevice { device_name })
+            .expect("infallible");
+    }
+
+    pub fn set_time_stretch(&self, ratio: f32) {
+        self.tx
+            .send(ControlCommand::SetTimeStretch { ratio })
+            .expect("infallible");
+    }
+
+    pub fn set_pitch(&self, semitones: i16) {
+        self.tx
+            .send(ControlCommand::SetPitch { semitones })
+            .expect("infallible");
+    }
+
+    pub fn set_pitch_cents(&self, cents: i16) {
+        self.tx
+            .send(ControlCommand::SetPitchCents { cents })
             .expect("infallible");
     }
 }

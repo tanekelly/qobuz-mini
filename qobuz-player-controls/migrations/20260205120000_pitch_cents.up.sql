@@ -1,0 +1,1 @@
+ALTER TABLE configuration ADD COLUMN pitch_cents INTEGER NOT NULL DEFAULT 0;

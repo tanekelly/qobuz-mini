@@ -18,7 +18,14 @@ pub fn routes() -> Router<std::sync::Arc<crate::AppState>> {
 }
 
 async fn index(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    now_playing(&state, false)
+    let time_stretch_ratio = state
+        .database
+        .get_configuration()
+        .await
+        .ok()
+        .map(|c| c.time_stretch_ratio)
+        .unwrap_or(1.0);
+    now_playing(&state, false, time_stretch_ratio)
 }
 
 async fn status_partial(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -26,10 +33,17 @@ async fn status_partial(State(state): State<Arc<AppState>>) -> impl IntoResponse
 }
 
 async fn now_playing_partial(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    now_playing(&state, true)
+    let time_stretch_ratio = state
+        .database
+        .get_configuration()
+        .await
+        .ok()
+        .map(|c| c.time_stretch_ratio)
+        .unwrap_or(1.0);
+    now_playing(&state, true, time_stretch_ratio)
 }
 
-fn now_playing(state: &AppState, partial: bool) -> Response {
+fn now_playing(state: &AppState, partial: bool, time_stretch_ratio: f32) -> Response {
     let tracklist = state.tracklist_receiver.borrow().clone();
     let current_track = tracklist.current_track().cloned();
 
@@ -43,8 +57,10 @@ fn now_playing(state: &AppState, partial: bool) -> Response {
         current_track
             .as_ref()
             .map_or((None, false, false), |track| {
+                let base_ms = track.duration_seconds as u64 * 1000;
+                let stretched_ms = (base_ms as f64 / time_stretch_ratio as f64).round() as u64;
                 (
-                    Some(track.duration_seconds * 1000),
+                    Some(stretched_ms),
                     track.explicit,
                     track.hires_available,
                 )

@@ -14,6 +14,7 @@ pub mod notification;
 pub mod player;
 pub mod simple_cache;
 pub mod sink;
+pub mod stretch_source_signalsmith;
 pub mod tracklist;
 
 pub use sink::{list_audio_devices, get_default_device_name, AudioDevice};

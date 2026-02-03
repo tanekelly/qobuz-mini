@@ -65,6 +65,69 @@
       </form>
     </div>
 
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium">Play rate</label>
+      <form
+        hx-post="/settings/set-time-stretch"
+        hx-target="#settings-content"
+        hx-swap="outerHTML"
+        class="flex flex-col gap-2"
+      >
+        <input
+          type="range"
+          name="time_stretch_ratio"
+          min="0.5"
+          max="2"
+          step="0.1"
+          value="{{ time_stretch_ratio_display }}"
+          class="w-full settings-slider"
+        />
+        <span class="text-sm text-gray-400 settings-slider-preview">{{ time_stretch_ratio_display }}x</span>
+      </form>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium">Pitch (semitones)</label>
+      <form
+        hx-post="/settings/set-pitch"
+        hx-target="#settings-content"
+        hx-swap="outerHTML"
+        class="flex flex-col gap-2"
+      >
+        <input
+          type="range"
+          name="pitch_semitones"
+          min="-12"
+          max="12"
+          step="1"
+          value="{{ pitch_semitones }}"
+          class="w-full settings-slider"
+        />
+        <span class="text-sm text-gray-400 settings-slider-preview">{{ pitch_semitones }} semitones</span>
+      </form>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium">Pitch (cents)</label>
+      <form
+        hx-post="/settings/set-pitch-cents"
+        hx-target="#settings-content"
+        hx-swap="outerHTML"
+        class="flex flex-col gap-2"
+      >
+        <input
+          type="range"
+          name="pitch_cents"
+          min="-100"
+          max="100"
+          step="1"
+          value="{{ pitch_cents }}"
+          class="w-full settings-slider"
+        />
+        <span class="text-sm text-gray-400 settings-slider-preview">{{ pitch_cents }} cents</span>
+      </form>
+    </div>
+
     <form hx-post="/settings/sign-out" hx-swap="none" class="flex flex-col gap-4">
       <button type="submit" class="button button-danger w-full">
         <span class="size-6">@defer (icons/user.html) {}</span>
