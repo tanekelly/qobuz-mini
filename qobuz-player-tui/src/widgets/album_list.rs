@@ -15,9 +15,16 @@ use crate::{
     ui::{COLUMN_SPACING, ROW_HIGHLIGHT_STYLE, format_duration, mark_explicit_and_hifi},
 };
 
-#[derive(Default)]
 pub struct AlbumList {
     items: FilteredListState<AlbumSimple>,
+}
+
+impl Default for AlbumList {
+    fn default() -> Self {
+        Self {
+            items: FilteredListState::new(Vec::new()),
+        }
+    }
 }
 
 impl AlbumList {

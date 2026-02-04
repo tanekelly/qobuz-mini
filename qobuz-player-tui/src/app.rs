@@ -265,7 +265,9 @@ impl App {
             .albums
             .set_all_items(library.albums.into_iter().map(Into::into).collect());
         self.library.artists.set_all_items(library.artists);
-        self.library.playlists.set_all_items(library.playlists);
+        self.library
+            .playlists
+            .set_all_items(library.playlists.into_iter().map(Into::into).collect());
         self.library.tracks.set_all_items(library.tracks);
         self.library.filter.reset();
     }

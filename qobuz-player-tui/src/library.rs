@@ -36,7 +36,7 @@ impl LibraryState {
             filter: Default::default(),
             albums: AlbumList::new(library.albums.into_iter().map(Into::into).collect()),
             artists: ArtistList::new(library.artists),
-            playlists: PlaylistList::new(library.playlists),
+            playlists: PlaylistList::new(library.playlists.into_iter().map(Into::into).collect()),
             tracks: TrackList::new(library.tracks),
             sub_tab: Default::default(),
         })
