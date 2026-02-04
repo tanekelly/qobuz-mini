@@ -55,6 +55,21 @@ pub struct AlbumSimple {
     pub duration_seconds: u32,
 }
 
+impl From<Album> for AlbumSimple {
+    fn from(value: Album) -> Self {
+        Self {
+            id: value.id,
+            title: value.title,
+            artist: value.artist,
+            image: value.image,
+            available: value.available,
+            hires_available: value.hires_available,
+            explicit: value.explicit,
+            duration_seconds: value.duration_seconds,
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct SearchResults {
     pub query: String,
@@ -97,6 +112,32 @@ pub struct Playlist {
     pub id: u32,
     pub image: Option<String>,
     pub tracks: Vec<Track>,
+}
+
+impl From<Playlist> for PlaylistSimple {
+    fn from(value: Playlist) -> Self {
+        Self {
+            is_owned: value.is_owned,
+            title: value.title,
+            duration_seconds: value.duration_seconds,
+            tracks_count: value.tracks_count,
+            id: value.id,
+            image: value.image,
+        }
+    }
+}
+impl From<PlaylistSimple> for Playlist {
+    fn from(value: PlaylistSimple) -> Self {
+        Self {
+            is_owned: value.is_owned,
+            title: value.title,
+            duration_seconds: value.duration_seconds,
+            tracks_count: value.tracks_count,
+            id: value.id,
+            image: value.image,
+            tracks: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]

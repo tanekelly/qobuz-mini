@@ -1,5 +1,5 @@
 use qobuz_player_controls::{Result, client::Client, controls::Controls};
-use qobuz_player_models::{Album, Artist, Playlist, Track};
+use qobuz_player_models::{Album, Artist, Playlist, PlaylistSimple, Track};
 use ratatui::{
     crossterm::event::{Event, KeyCode, KeyEventKind},
     prelude::*,
@@ -12,7 +12,7 @@ use crate::{
     app::{NotificationList, Output},
     ui::{block, center, centered_rect_fixed, render_input, tab_bar},
     widgets::{
-        album_simple_list::AlbumSimpleList,
+        album_list::AlbumList,
         playlist_list::PlaylistList,
         track_list::{TrackList, TrackListEvent},
     },
@@ -20,7 +20,7 @@ use crate::{
 
 pub struct ArtistPopupState {
     artist_name: String,
-    albums: AlbumSimpleList,
+    albums: AlbumList,
     show_top_track: bool,
     top_tracks: TrackList,
     id: u32,
@@ -37,7 +37,7 @@ impl ArtistPopupState {
 
         let mut state = Self {
             artist_name: artist.name.clone(),
-            albums: AlbumSimpleList::new(artist_albums),
+            albums: AlbumList::new(artist_albums),
             show_top_track: false,
             top_tracks: TrackList::new(artist_page.top_tracks),
             id: artist.id,
@@ -107,7 +107,7 @@ pub struct DeletePlaylistPopupstate {
 }
 
 impl DeletePlaylistPopupstate {
-    pub fn new(playlist: Playlist) -> Self {
+    pub fn new(playlist: PlaylistSimple) -> Self {
         Self {
             title: playlist.title,
             id: playlist.id,
@@ -122,7 +122,7 @@ pub struct TrackPopupState {
 }
 
 impl TrackPopupState {
-    pub fn new(track: Track, owned_playlists: Vec<Playlist>) -> Self {
+    pub fn new(track: Track, owned_playlists: Vec<PlaylistSimple>) -> Self {
         Self {
             playlists: PlaylistList::new(owned_playlists),
             track,

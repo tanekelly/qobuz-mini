@@ -34,7 +34,7 @@ impl LibraryState {
         Ok(Self {
             editing: Default::default(),
             filter: Default::default(),
-            albums: AlbumList::new(library.albums),
+            albums: AlbumList::new(library.albums.into_iter().map(Into::into).collect()),
             artists: ArtistList::new(library.artists),
             playlists: PlaylistList::new(library.playlists),
             tracks: TrackList::new(library.tracks),

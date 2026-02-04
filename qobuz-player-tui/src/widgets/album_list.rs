@@ -1,5 +1,5 @@
 use qobuz_player_controls::{Result, client::Client, notification::Notification};
-use qobuz_player_models::Album;
+use qobuz_player_models::AlbumSimple;
 use ratatui::{
     buffer::Buffer,
     crossterm::event::KeyCode,
@@ -17,11 +17,11 @@ use crate::{
 
 #[derive(Default)]
 pub struct AlbumList {
-    items: FilteredListState<Album>,
+    items: FilteredListState<AlbumSimple>,
 }
 
 impl AlbumList {
-    pub fn new(albums: Vec<Album>) -> Self {
+    pub fn new(albums: Vec<AlbumSimple>) -> Self {
         let albums = FilteredListState::new(albums);
         Self { items: albums }
     }
@@ -31,15 +31,23 @@ impl AlbumList {
         table.render(area, buf, &mut self.items.state);
     }
 
-    pub fn set_filter(&mut self, items: Vec<Album>) {
+    pub fn select_first(&mut self) {
+        self.items.state.select(Some(0));
+    }
+
+    pub fn filter(&self) -> &Vec<AlbumSimple> {
+        self.items.filter()
+    }
+
+    pub fn set_filter(&mut self, items: Vec<AlbumSimple>) {
         self.items.set_filter(items);
     }
 
-    pub fn all_items(&self) -> &Vec<Album> {
+    pub fn all_items(&self) -> &Vec<AlbumSimple> {
         self.items.all_items()
     }
 
-    pub fn set_all_items(&mut self, items: Vec<Album>) {
+    pub fn set_all_items(&mut self, items: Vec<AlbumSimple>) {
         self.items.set_all_items(items);
     }
 
@@ -115,14 +123,13 @@ impl AlbumList {
     }
 }
 
-fn album_table<'a>(rows: &[Album]) -> Table<'a> {
+pub fn album_table<'a>(rows: &[AlbumSimple]) -> Table<'a> {
     let body_rows: Vec<Row<'a>> = rows
         .iter()
         .map(|album| {
             Row::new(vec![
                 mark_explicit_and_hifi(album.title.clone(), album.explicit, album.hires_available),
                 Line::from(album.artist.name.clone()),
-                Line::from(album.release_year.to_string()),
                 Line::from(format_duration(album.duration_seconds)),
             ])
         })
@@ -131,9 +138,8 @@ fn album_table<'a>(rows: &[Album]) -> Table<'a> {
     let is_empty = body_rows.is_empty();
 
     let constraints = [
-        Constraint::Ratio(2, 3),
-        Constraint::Ratio(1, 3),
-        Constraint::Length(4),
+        Constraint::Ratio(3, 5),
+        Constraint::Ratio(2, 5),
         Constraint::Length(10),
     ];
 
@@ -142,8 +148,7 @@ fn album_table<'a>(rows: &[Album]) -> Table<'a> {
         .column_spacing(COLUMN_SPACING);
 
     if !is_empty {
-        table = table
-            .header(Row::new(["Title", "Artist", "Year", "Duration"]).add_modifier(Modifier::BOLD));
+        table = table.header(Row::new(["Title", "Artist", "Duration"]).add_modifier(Modifier::BOLD));
     }
 
     table

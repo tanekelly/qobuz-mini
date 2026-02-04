@@ -261,7 +261,9 @@ impl App {
             return;
         };
 
-        self.library.albums.set_all_items(library.albums);
+        self.library
+            .albums
+            .set_all_items(library.albums.into_iter().map(Into::into).collect());
         self.library.artists.set_all_items(library.artists);
         self.library.playlists.set_all_items(library.playlists);
         self.library.tracks.set_all_items(library.tracks);
@@ -367,6 +369,7 @@ impl App {
                     lib.playlists
                         .into_iter()
                         .filter(|p| p.is_owned)
+                        .map(|x| x.into())
                         .collect::<Vec<_>>()
                 });
 

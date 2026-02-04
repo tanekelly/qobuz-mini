@@ -136,9 +136,16 @@ impl SearchState {
         if !self.filter.value().trim().is_empty() {
             let search_results = client.search(self.filter.value().to_string()).await?;
 
-            self.albums.set_all_items(search_results.albums);
+            self.albums
+                .set_all_items(search_results.albums.into_iter().map(Into::into).collect());
             self.artists.set_all_items(search_results.artists);
-            self.playlists.set_all_items(search_results.playlists);
+            self.playlists.set_all_items(
+                search_results
+                    .playlists
+                    .into_iter()
+                    .map(|x| x.into())
+                    .collect(),
+            );
             self.tracks.set_all_items(search_results.tracks);
         }
 

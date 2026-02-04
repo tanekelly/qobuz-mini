@@ -9,7 +9,7 @@ use ratatui::{
 use crate::{
     app::{NotificationList, Output},
     ui::{block, tab_bar},
-    widgets::album_simple_list::AlbumSimpleList,
+    widgets::{album_list::AlbumList, playlist_list::PlaylistList},
 };
 
 pub struct GenresState {
@@ -22,7 +22,8 @@ pub struct GenresState {
 struct GenreItem {
     id: u32,
     name: String,
-    albums: Vec<(String, AlbumSimpleList)>,
+    albums: Vec<(String, AlbumList)>,
+    playlists: PlaylistList,
 }
 
 #[derive(PartialEq)]
@@ -40,7 +41,8 @@ impl GenresState {
             .map(|g| GenreItem {
                 id: g.id,
                 name: g.name,
-                albums: Vec::new(),
+                albums: Default::default(),
+                playlists: Default::default(),
             })
             .collect();
 
@@ -52,16 +54,19 @@ impl GenresState {
         })
     }
 
-    async fn load_genre_albums(&mut self, client: &Client) -> Result<()> {
-        if self.genres[self.selected_genre].albums.is_empty() {
-            let genre_id = self.genres[self.selected_genre].id;
-            let albums = client.genre_albums(genre_id).await?;
+    async fn load_genre(&mut self, client: &Client) -> Result<()> {
+        let genre_id = self.genres[self.selected_genre].id;
 
-            self.genres[self.selected_genre].albums = albums
-                .into_iter()
-                .map(|x| (x.0, AlbumSimpleList::new(x.1)))
-                .collect();
-        }
+        let albums = client.genre_albums(genre_id).await?;
+        let playlists = client.genre_playlists(genre_id).await?;
+
+        self.genres[self.selected_genre].albums = albums
+            .into_iter()
+            .map(|x| (x.0, AlbumList::new(x.1)))
+            .collect();
+
+        self.genres[self.selected_genre].playlists = PlaylistList::new(playlists);
+
         Ok(())
     }
 }
@@ -149,32 +154,30 @@ impl GenresState {
             ])
             .split(area);
 
-        // Back button and title
-        let title = format!("← Back  |  {}", self.genres[self.selected_genre].name);
+        let title = format!("← Back | {}", self.genres[self.selected_genre].name);
         let title_widget = Paragraph::new(title)
             .style(Style::default().fg(Color::Cyan))
             .alignment(Alignment::Left);
         frame.render_widget(title_widget, chunks[0]);
 
-        // Sub tabs
         let albums = &self.genres[self.selected_genre].albums;
-        let labels: Vec<_> = albums.iter().map(|a| a.0.as_str()).collect();
+        let mut labels: Vec<_> = albums
+            .iter()
+            .filter(|x| !x.1.all_items().is_empty())
+            .map(|a| a.0.as_str())
+            .collect();
+        labels.push("Playlists");
 
-        if !labels.is_empty() {
-            let tabs = tab_bar(labels, self.selected_sub_tab);
-            frame.render_widget(tabs, chunks[1]);
+        let tabs = tab_bar(labels, self.selected_sub_tab);
+        frame.render_widget(tabs, chunks[1]);
 
-            // Album list
-            if self.selected_sub_tab < albums.len() {
-                let list_state =
-                    &mut self.genres[self.selected_genre].albums[self.selected_sub_tab];
-                list_state.1.render(chunks[2], frame.buffer_mut());
+        match self.selected_mut() {
+            Selected::Album(album_list) => {
+                album_list.render(chunks[2], frame.buffer_mut());
             }
-        } else {
-            let loading = Paragraph::new("Loading albums...")
-                .style(Style::default().fg(Color::Yellow))
-                .alignment(Alignment::Center);
-            frame.render_widget(loading, chunks[2]);
+            Selected::Playlist(playlist_list) => {
+                playlist_list.render(chunks[2], frame.buffer_mut());
+            }
         }
     }
 
@@ -225,7 +228,7 @@ impl GenresState {
                 Ok(Output::Consumed)
             }
             KeyCode::Enter => {
-                self.load_genre_albums(client).await?;
+                self.load_genre(client).await?;
                 self.mode = GenresMode::GenreDetail;
                 self.selected_sub_tab = 0;
                 Ok(Output::Consumed)
@@ -253,31 +256,68 @@ impl GenresState {
                 self.cycle_subtab();
                 Ok(Output::Consumed)
             }
-            _ => {
-                let albums = &mut self.genres[self.selected_genre].albums;
-                if self.selected_sub_tab < albums.len() {
-                    albums[self.selected_sub_tab]
-                        .1
-                        .handle_events(code, client, notifications)
-                        .await
-                } else {
-                    Ok(Output::NotConsumed)
+            _ => match self.selected_mut() {
+                Selected::Album(album_list) => {
+                    return album_list.handle_events(code, client, notifications).await;
                 }
-            }
+                Selected::Playlist(playlist_list) => {
+                    return playlist_list
+                        .handle_events(code, client, notifications)
+                        .await;
+                }
+            },
         }
     }
 
-    fn cycle_subtab_backwards(&mut self) {
-        let count = self.genres[self.selected_genre].albums.len();
-        if count > 0 {
-            self.selected_sub_tab = (self.selected_sub_tab + count - 1) % count;
+    fn current_subtab(&self) -> SubTab {
+        let filtered = self.non_empty_album_indices();
+        let album_count = filtered.len();
+
+        if self.selected_sub_tab < album_count {
+            SubTab::Album(filtered[self.selected_sub_tab])
+        } else {
+            SubTab::Playlist
         }
+    }
+
+    fn selected_mut(&mut self) -> Selected<'_> {
+        match self.current_subtab() {
+            SubTab::Album(original_index) => {
+                Selected::Album(&mut self.genres[self.selected_genre].albums[original_index].1)
+            }
+            SubTab::Playlist => Selected::Playlist(&mut self.genres[self.selected_genre].playlists),
+        }
+    }
+
+    fn non_empty_album_indices(&self) -> Vec<usize> {
+        self.genres[self.selected_genre]
+            .albums
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| !x.1.all_items().is_empty())
+            .map(|(i, _)| i)
+            .collect()
     }
 
     fn cycle_subtab(&mut self) {
-        let count = self.genres[self.selected_genre].albums.len();
-        if count > 0 {
-            self.selected_sub_tab = (self.selected_sub_tab + 1) % count;
-        }
+        let album_count = self.non_empty_album_indices().len();
+        let total = album_count + 1;
+        self.selected_sub_tab = (self.selected_sub_tab + 1) % total;
     }
+
+    fn cycle_subtab_backwards(&mut self) {
+        let album_count = self.non_empty_album_indices().len();
+        let total = album_count + 1;
+        self.selected_sub_tab = (self.selected_sub_tab + total - 1) % total;
+    }
+}
+
+enum Selected<'a> {
+    Album(&'a mut AlbumList),
+    Playlist(&'a mut PlaylistList),
+}
+
+enum SubTab {
+    Album(usize),
+    Playlist,
 }
